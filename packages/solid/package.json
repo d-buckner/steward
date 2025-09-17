@@ -1,0 +1,66 @@
+{
+  "name": "@d-buckner/steward-solid",
+  "version": "1.0.0",
+  "description": "SolidJS primitives for Steward service architecture",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "solidjs",
+    "signals",
+    "service-architecture",
+    "steward"
+  ],
+  "author": "Daniel Buckner",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/d-buckner/steward.git",
+    "directory": "packages/solid"
+  },
+  "homepage": "https://github.com/d-buckner/steward/tree/main/packages/solid#readme",
+  "bugs": {
+    "url": "https://github.com/d-buckner/steward/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.8.0"
+  },
+  "devDependencies": {
+    "@solidjs/testing-library": "^0.8.9",
+    "@testing-library/jest-dom": "^6.8.0",
+    "jsdom": "^25.0.1",
+    "solid-js": "^1.8.22",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vite-plugin-dts": "^4.5.4",
+    "vite-plugin-solid": "^2.10.2",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@d-buckner/steward": "file:../.."
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

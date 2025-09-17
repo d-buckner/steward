@@ -1,0 +1,70 @@
+{
+  "name": "@d-buckner/steward",
+  "version": "1.0.0",
+  "description": "A service-based architecture with dependency injection and event bus for frontend applications",
+  "packageManager": "npm@10.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "type": "module",
+  "main": "./dist/steward.cjs",
+  "module": "./dist/steward.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/steward.js",
+      "require": "./dist/steward.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "npm run build:core && turbo build",
+    "build:packages": "turbo build",
+    "test": "turbo test",
+    "test:run": "turbo test:run",
+    "typecheck": "turbo typecheck",
+    "build:core": "vite build",
+    "test:core": "vitest",
+    "test:core:run": "vitest run",
+    "typecheck:core": "tsc --noEmit",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "npm run build && changeset publish"
+  },
+  "keywords": [
+    "service-architecture",
+    "dependency-injection",
+    "event-bus",
+    "frontend",
+    "typescript"
+  ],
+  "author": "Daniel Buckner",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/d-buckner/steward.git"
+  },
+  "homepage": "https://github.com/d-buckner/steward#readme",
+  "bugs": {
+    "url": "https://github.com/d-buckner/steward/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "@types/node": "^24.3.1",
+    "turbo": "^2.5.6",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@automerge/automerge": "^3.1.2"
+  }
+}
