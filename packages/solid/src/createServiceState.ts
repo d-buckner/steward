@@ -1,15 +1,19 @@
 import { createSignal, onCleanup } from 'solid-js'
-import { Service } from '@d-buckner/steward'
+import { TypedServiceToken, StateFromToken } from '@d-buckner/steward'
+import { useServiceContainer } from './ServiceProvider'
 
-export function createServiceState<TState extends Record<string, any>, K extends keyof TState>(
-  service: Service<TState>,
+export function createServiceState<T extends TypedServiceToken, K extends keyof StateFromToken<T>>(
+  serviceToken: T,
   key: K
-): () => TState[K] | undefined {
-  const [value, setValue] = createSignal<TState[K] | undefined>(
-    service.state[key] as TState[K] | undefined
+): () => StateFromToken<T>[K] | undefined {
+  const container = useServiceContainer()
+  const service = container.resolve(serviceToken)
+  
+  const [value, setValue] = createSignal<StateFromToken<T>[K] | undefined>(
+    service.state[key as keyof typeof service.state] as StateFromToken<T>[K] | undefined
   )
 
-  const subscription = service.on(key as string, (newValue: TState[K]) => {
+  const subscription = service.on(key as string, (newValue: StateFromToken<T>[K]) => {
     setValue(() => newValue)
   })
 
