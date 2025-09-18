@@ -1,13 +1,104 @@
 import { ServiceContainer } from '@d-buckner/steward'
-import { createContext, useContext, ParentComponent } from 'solid-js'
+import { createContext, useContext, ParentComponent, onMount } from 'solid-js'
 
 const ServiceContainerContext = createContext<ServiceContainer>()
+
+// Development-only devtools interface
+interface StewardDevTools {
+  container: ServiceContainer
+  getState: (serviceName: string) => any
+  getAllStates: () => Record<string, any>
+  inspect: () => void
+  subscriptions: Map<string, string[]>
+}
+
+declare global {
+  interface Window {
+    __STEWARD_DEVTOOLS__?: StewardDevTools
+  }
+}
 
 export interface ServiceProviderProps {
   container: ServiceContainer
 }
 
 export const ServiceProvider: ParentComponent<ServiceProviderProps> = (props) => {
+  // Setup development devtools
+  onMount(() => {
+    console.log('🚀 ServiceProvider onMount called')
+    console.log('🔧 Environment check:', {
+      hasWindow: typeof window !== 'undefined',
+      isDev: import.meta.env.DEV,
+      mode: import.meta.env.MODE,
+    })
+    
+    // Early return for SSR or production mode
+    if (typeof window === 'undefined') {
+      console.log('❌ DevTools skipped - no window (SSR)')
+      return
+    }
+    
+    // if (import.meta.env.MODE === 'production') {
+      // console.log('❌ DevTools skipped - production mode')
+      // return
+    // }
+    
+    console.log('✅ Setting up devtools...')
+    const subscriptions = new Map<string, string[]>()
+    
+    window.__STEWARD_DEVTOOLS__ = {
+        container: props.container,
+        
+        getState: (serviceName: string) => {
+          try {
+            // Try to resolve by token name
+            const service = (props.container as any).instances?.get(serviceName) || 
+                           (props.container as any).resolve(serviceName)
+            return service?.getState?.() || service?.state || 'Service not found'
+          } catch (e) {
+            return `Error: ${e instanceof Error ? e.message : String(e)}`
+          }
+        },
+        
+        getAllStates: () => {
+          const states: Record<string, any> = {}
+          try {
+            // Access internal instances map if available
+            const instances = (props.container as any).instances
+            if (instances && instances instanceof Map) {
+              instances.forEach((service: any, token: any) => {
+                const tokenName = token.name || token.toString()
+                states[tokenName] = service?.getState?.() || service?.state || service
+              })
+            }
+          } catch (e) {
+            states.error = `Could not access service instances: ${e instanceof Error ? e.message : String(e)}`
+          }
+          return states
+        },
+        
+        inspect: () => {
+          console.group('🔍 Steward DevTools - Current State')
+          const states = window.__STEWARD_DEVTOOLS__!.getAllStates()
+          Object.entries(states).forEach(([serviceName, state]) => {
+            console.group(`📦 ${serviceName}`)
+            console.log(state)
+            console.groupEnd()
+          })
+          console.log('\n💡 Available commands:')
+          console.log('  __STEWARD_DEVTOOLS__.getState("serviceName")')
+          console.log('  __STEWARD_DEVTOOLS__.getAllStates()')
+          console.log('  __STEWARD_DEVTOOLS__.inspect()')
+          console.log('  __STEWARD_DEVTOOLS__.subscriptions')
+          console.groupEnd()
+        },
+        
+        subscriptions
+      }
+      
+      console.log('🛠️ Steward DevTools ready! Try: __STEWARD_DEVTOOLS__.inspect()')
+  })
+
   return (
     <ServiceContainerContext.Provider value={props.container}>
       {props.children}

@@ -73,13 +73,52 @@ export function createServiceActions<T extends TypedServiceToken>(
         // Use custom parameter mapping
         (actions as any)[methodName] = async (...args: any[]) => {
           const payload = customAction(...args)
-          return (service as any).send(type, payload)
+          
+          // Early return for production - no logging overhead
+          if (!import.meta.env.DEV) {
+            return (service as any).send(type, payload)
+          }
+          
+          // Development logging
+          const serviceName = (service.constructor as any).name || 'UnknownService'
+          console.group(`🎯 ${serviceName}.${methodName}(${args.map(a => JSON.stringify(a)).join(', ')})`)
+          console.log('📨 Payload:', payload)
+          console.log('📊 Before:', service.getState())
+          const startTime = performance.now()
+          
+          const result = await (service as any).send(type, payload)
+          
+          const endTime = performance.now()
+          console.log('📊 After:', service.getState())
+          console.log(`⏱️ Duration: ${(endTime - startTime).toFixed(2)}ms`)
+          console.groupEnd()
+          
+          return result
         }
-      } else {
-        // Default behavior: single param or empty
-        (actions as any)[methodName] = async (payload?: any) => {
+        return
+      }
+      
+      // Default behavior: single param or empty
+      (actions as any)[methodName] = async (payload?: any) => {
+        // Early return for production - no logging overhead
+        if (!import.meta.env.DEV) {
           return (service as any).send(type, payload || {})
         }
+        
+        // Development logging
+        const serviceName = (service.constructor as any).name || 'UnknownService'
+        console.group(`🎯 ${serviceName}.${methodName}(${JSON.stringify(payload)})`)
+        console.log('📊 Before:', service.getState())
+        const startTime = performance.now()
+        
+        const result = await (service as any).send(type, payload || {})
+        
+        const endTime = performance.now()
+        console.log('📊 After:', service.getState())
+        console.log(`⏱️ Duration: ${(endTime - startTime).toFixed(2)}ms`)
+        console.groupEnd()
+        
+        return result
       }
     })
   } else {

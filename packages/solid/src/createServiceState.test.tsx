@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render } from '@solidjs/testing-library'
-import { Service } from '@d-buckner/steward'
+import { Service, ServiceContainer, createServiceToken } from '@d-buckner/steward'
 import { createServiceState } from './createServiceState'
+import { ServiceProvider } from './ServiceProvider'
 
 interface CounterState {
   count: number
@@ -33,30 +34,44 @@ class CounterService extends Service<CounterState> {
   }
 }
 
+// Create service token for testing
+const CounterToken = createServiceToken<CounterService>('counter')
+
 describe('createServiceState', () => {
-  let service: CounterService
+  let container: ServiceContainer
 
   beforeEach(() => {
-    service = new CounterService()
+    container = new ServiceContainer()
+    container.register(CounterToken, CounterService)
   })
 
   it('should return current value for specific key', () => {
     function TestComponent() {
-      const count = createServiceState(service, 'count')
+      const count = createServiceState(CounterToken, 'count')
       return <div data-testid="count">{count()}</div>
     }
 
-    const { getByTestId } = render(() => <TestComponent />)
+    const { getByTestId } = render(() => 
+      <ServiceProvider container={container}>
+        <TestComponent />
+      </ServiceProvider>
+    )
     expect(getByTestId('count')).toHaveTextContent('0')
   })
 
   it('should update when service state changes', async () => {
+    const service = container.resolve(CounterToken)
+    
     function TestComponent() {
-      const count = createServiceState(service, 'count')
+      const count = createServiceState(CounterToken, 'count')
       return <div data-testid="count">{count()}</div>
     }
 
-    const { getByTestId } = render(() => <TestComponent />)
+    const { getByTestId } = render(() => 
+      <ServiceProvider container={container}>
+        <TestComponent />
+      </ServiceProvider>
+    )
     expect(getByTestId('count')).toHaveTextContent('0')
     
     await service.increment()
@@ -65,12 +80,18 @@ describe('createServiceState', () => {
   })
 
   it('should work with string values', async () => {
+    const service = container.resolve(CounterToken)
+    
     function TestComponent() {
-      const name = createServiceState(service, 'name')
+      const name = createServiceState(CounterToken, 'name')
       return <div data-testid="name">{name()}</div>
     }
 
-    const { getByTestId } = render(() => <TestComponent />)
+    const { getByTestId } = render(() => 
+      <ServiceProvider container={container}>
+        <TestComponent />
+      </ServiceProvider>
+    )
     expect(getByTestId('name')).toHaveTextContent('counter')
     
     await service.setName('updated')
@@ -79,12 +100,18 @@ describe('createServiceState', () => {
   })
 
   it('should work with boolean values', async () => {
+    const service = container.resolve(CounterToken)
+    
     function TestComponent() {
-      const isActive = createServiceState(service, 'isActive')
+      const isActive = createServiceState(CounterToken, 'isActive')
       return <div data-testid="active">{isActive() ? 'true' : 'false'}</div>
     }
 
-    const { getByTestId } = render(() => <TestComponent />)
+    const { getByTestId } = render(() => 
+      <ServiceProvider container={container}>
+        <TestComponent />
+      </ServiceProvider>
+    )
     expect(getByTestId('active')).toHaveTextContent('false')
     
     await service.toggle()
@@ -93,12 +120,18 @@ describe('createServiceState', () => {
   })
 
   it('should handle rapid state changes', async () => {
+    const service = container.resolve(CounterToken)
+    
     function TestComponent() {
-      const count = createServiceState(service, 'count')
+      const count = createServiceState(CounterToken, 'count')
       return <div data-testid="count">{count()}</div>
     }
 
-    const { getByTestId } = render(() => <TestComponent />)
+    const { getByTestId } = render(() => 
+      <ServiceProvider container={container}>
+        <TestComponent />
+      </ServiceProvider>
+    )
     expect(getByTestId('count')).toHaveTextContent('0')
     
     await service.increment()

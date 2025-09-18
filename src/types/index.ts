@@ -11,5 +11,5 @@ export interface EventBus {
   removeAllListeners(event?: string): void
   hasListeners(event: string): boolean
   getListenerCount(event: string): number
-  getCurrentState(): Record<string, any>
+  getState(): Record<string, any>
 }

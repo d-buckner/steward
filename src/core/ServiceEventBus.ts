@@ -63,7 +63,7 @@ export class ServiceEventBus<TEvents extends Record<string, any>> {
   /**
    * Get all current state
    */
-  getCurrentState(): Partial<TEvents> {
+  getState(): Partial<TEvents> {
     const state = {} as Partial<TEvents>
     this.currentState.forEach((value, key) => {
       state[key] = value as TEvents[keyof TEvents]

@@ -71,8 +71,8 @@ export abstract class Service<TState extends Record<string, any> = Record<string
     this.setStates(updates)
   }
   
-  getCurrentState(): Record<string, any> {
-    return this.eventBus.getCurrentState()
+  public getState(): Record<string, any> {
+    return this.eventBus.getState()
   }
   
   /**
