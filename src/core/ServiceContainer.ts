@@ -1,4 +1,6 @@
 import { TypedServiceToken, ServiceFromToken } from './ServiceTokens'
+import { isWorkerService, getWorkerOptions } from './WorkerDecorator'
+import { WorkerProxy } from './WorkerProxy'
 
 export type ServiceConstructor<T = any> = new (...args: any[]) => T
 
@@ -23,8 +25,30 @@ export class ServiceContainer {
       throw new Error(`Service not registered for token: ${token.name}`)
     }
 
-    // Create new instance
-    const instance = new ServiceConstructor()
+    let instance: any
+
+    // Check if service should run in a worker
+    if (isWorkerService(ServiceConstructor)) {
+      // Create worker proxy instead of direct service instance
+      const workerOptions = getWorkerOptions(ServiceConstructor)
+      
+      // Get initial state - assume empty state for now since we can't instantiate abstract services
+      const initialState = {} as any
+      
+      instance = new WorkerProxy(
+        ServiceConstructor,
+        initialState,
+        workerOptions
+      )
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔧 Created worker service: ${token.name}`, workerOptions)
+      }
+    } else {
+      // Create regular service instance
+      instance = new ServiceConstructor()
+    }
+
     this.instances.set(token.symbol, instance)
     
     return instance as ServiceFromToken<T>

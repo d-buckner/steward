@@ -1,11 +1,13 @@
-// Core services
+// Core services  
 export { Service } from './core/Service'
 export { CRDTService } from './core/CRDTService'
 export { ServiceEventBus } from './core/ServiceEventBus'
 export { ServiceContainer } from './core/ServiceContainer'
 
-// Message-driven services
-export { MessageService } from './core/MessageService'
+// Worker support
+export { withWorker, isWorkerService, getWorkerOptions } from './core/WorkerDecorator'
+export { WorkerProxy } from './core/WorkerProxy'
+export type { WorkerOptions } from './core/WorkerDecorator'
 export * from './core/Messages'
 export * from './core/MessageActions'
 
@@ -16,3 +18,6 @@ export * from './core/ServiceTokens'
 export type { EventBus, EventHandler, EventSubscription } from './types'
 export type { ServiceConstructor } from './core/ServiceContainer'
 export type { ChangeFunction } from './core/CRDTService'
+
+// Headless service utilities
+export * from './headless'

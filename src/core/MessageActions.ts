@@ -1,5 +1,5 @@
 import { MessageDefinition } from './Messages'
-import { MessageService } from './MessageService'
+import { Service } from './Service'
 
 // Convert snake_case/UPPER_CASE message types to camelCase method names
 function toCamelCase(str: string): string {
@@ -19,7 +19,7 @@ export function createMessageActions<
   State extends Record<string, any>,
   Messages extends MessageDefinition
 >(
-  service: MessageService<State, Messages>,
+  service: Service<State, Messages>,
   messageTypes: (keyof Messages)[],
   customActions?: ActionCreators<Messages>
 ): any {
@@ -51,7 +51,7 @@ export function getMessageTypes<
   State extends Record<string, any>,
   Messages extends MessageDefinition
 >(
-  service: MessageService<State, Messages>
+  service: Service<State, Messages>
 ): (keyof Messages)[] {
   // In practice, this would be provided via metadata or registered explicitly
   // For now, we'll rely on the service implementation to provide this
@@ -63,7 +63,7 @@ export function withMessages<Messages extends MessageDefinition>(
   messageTypes: (keyof Messages)[],
   actionCreators?: ActionCreators<Messages>
 ) {
-  return function<T extends new (...args: any[]) => MessageService<any, Messages>>(
+  return function<T extends new (...args: any[]) => Service<any, Messages>>(
     constructor: T
   ) {
     // Store message types and action creators on the constructor for reflection

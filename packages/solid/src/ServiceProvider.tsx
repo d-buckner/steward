@@ -25,25 +25,11 @@ export interface ServiceProviderProps {
 export const ServiceProvider: ParentComponent<ServiceProviderProps> = (props) => {
   // Setup development devtools
   onMount(() => {
-    console.log('🚀 ServiceProvider onMount called')
-    console.log('🔧 Environment check:', {
-      hasWindow: typeof window !== 'undefined',
-      isDev: import.meta.env.DEV,
-      mode: import.meta.env.MODE,
-    })
-    
-    // Early return for SSR or production mode
+    // Early return for SSR
     if (typeof window === 'undefined') {
-      console.log('❌ DevTools skipped - no window (SSR)')
       return
     }
     
-    // if (import.meta.env.MODE === 'production') {
-      // console.log('❌ DevTools skipped - production mode')
-      // return
-    // }
-    
-    console.log('✅ Setting up devtools...')
     const subscriptions = new Map<string, string[]>()
     
     window.__STEWARD_DEVTOOLS__ = {

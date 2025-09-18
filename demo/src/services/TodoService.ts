@@ -1,4 +1,4 @@
-import { MessageService, withMessages, Message } from '@d-buckner/steward'
+import { Service, withMessages, Message } from '@d-buckner/steward'
 
 export interface Todo {
   id: string
@@ -46,7 +46,7 @@ interface TodoMessages {
   CLEAR_COMPLETED: () => ({}),
   LOAD_SAMPLE_DATA: () => ({})
 })
-export class TodoService extends MessageService<TodoState, TodoMessages> {
+export class TodoService extends Service<TodoState, TodoMessages> {
   constructor() {
     super({
       items: [],

@@ -6,9 +6,15 @@ import topLevelAwait from 'vite-plugin-top-level-await'
 export default defineConfig({
   plugins: [solid(), wasm(), topLevelAwait()],
   server: {
-    port: 3000
+    port: 3000,
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+    }
   },
-  mode: 'development',
+  worker: {
+    format: 'es'
+  },
   base: './',
   optimizeDeps: {
     exclude: ['@automerge/automerge']

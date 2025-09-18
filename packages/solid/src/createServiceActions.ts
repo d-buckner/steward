@@ -122,29 +122,18 @@ export function createServiceActions<T extends TypedServiceToken>(
       }
     })
   } else {
-    // Fallback: look for existing methods on prototype
-    const prototype = Object.getPrototypeOf(service)
-    const baseServicePrototype = Service.prototype
+    // Service does not use @withMessages decorator
+    // In pure message-passing architecture, all services must use messages
+    if (import.meta.env.DEV) {
+      console.warn(
+        `⚠️ Service ${service.constructor.name} does not use @withMessages decorator. ` +
+        `For pure message-passing architecture, all services should extend MessageService ` +
+        `and use the @withMessages decorator.`
+      )
+    }
     
-    const methodNames = Object.getOwnPropertyNames(prototype).filter(name => {
-      // Skip constructor
-      if (name === 'constructor') return false
-      
-      // Skip if it's a base Service method
-      if (name in baseServicePrototype) return false
-      
-      // Only include functions
-      const descriptor = Object.getOwnPropertyDescriptor(prototype, name)
-      return descriptor && typeof service[name as keyof typeof service] === 'function'
-    })
-    
-    // Bind each method to the service instance
-    methodNames.forEach(methodName => {
-      const method = service[methodName as keyof typeof service] as any
-      if (typeof method === 'function') {
-        (actions as any)[methodName] = method.bind(service)
-      }
-    })
+    // Return empty actions object - no fallback to direct methods
+    // This enforces the message-passing discipline
   }
   
   return actions

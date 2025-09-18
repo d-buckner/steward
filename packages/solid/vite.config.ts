@@ -32,5 +32,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['@testing-library/jest-dom']
+  },
+  esbuild: {
+    target: 'node14'
+  },
+  define: {
+    'process.env.NODE_ENV': '"development"'
   }
 })

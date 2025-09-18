@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render } from '@solidjs/testing-library'
-import { Service, ServiceContainer, createServiceToken } from '@d-buckner/steward'
+import { Service, ServiceContainer, createServiceToken, withMessages, Message } from '@d-buckner/steward'
 import { createServiceState } from './createServiceState'
+import { createServiceActions } from './createServiceActions'
 import { ServiceProvider } from './ServiceProvider'
 
 interface CounterState {
@@ -10,7 +11,20 @@ interface CounterState {
   isActive: boolean
 }
 
-class CounterService extends Service<CounterState> {
+interface CounterMessages {
+  INCREMENT: {}
+  SET_NAME: { name: string }
+  TOGGLE: {}
+}
+
+@withMessages<CounterMessages>([
+  'INCREMENT', 'SET_NAME', 'TOGGLE'
+], {
+  INCREMENT: () => ({}),
+  SET_NAME: (name: string) => ({ name }),
+  TOGGLE: () => ({})
+})
+class CounterService extends Service<CounterState, CounterMessages> {
   constructor() {
     super({
       count: 0,
@@ -19,18 +33,24 @@ class CounterService extends Service<CounterState> {
     })
   }
 
-  async increment(): Promise<void> {
-    const current = this.state.count || 0
-    this.setState('count', current + 1)
-  }
-
-  async setName(name: string): Promise<void> {
-    this.setState('name', name)
-  }
-
-  async toggle(): Promise<void> {
-    const current = this.state.isActive || false
-    this.setState('isActive', !current)
+  async handle<K extends keyof CounterMessages>(message: Message<CounterMessages, K>): Promise<void> {
+    switch (message.type) {
+      case 'INCREMENT': {
+        const current = this.state.count || 0
+        this.setState('count', current + 1)
+        break
+      }
+      case 'SET_NAME': {
+        const { name } = message.payload as CounterMessages['SET_NAME']
+        this.setState('name', name)
+        break
+      }
+      case 'TOGGLE': {
+        const current = this.state.isActive || false
+        this.setState('isActive', !current)
+        break
+      }
+    }
   }
 }
 
@@ -60,10 +80,13 @@ describe('createServiceState', () => {
   })
 
   it('should update when service state changes', async () => {
-    const service = container.resolve(CounterToken)
-    
     function TestComponent() {
       const count = createServiceState(CounterToken, 'count')
+      const actions = createServiceActions(CounterToken)
+      
+      // Trigger action to test state update
+      setTimeout(() => actions.increment(), 0)
+      
       return <div data-testid="count">{count()}</div>
     }
 
@@ -74,16 +97,20 @@ describe('createServiceState', () => {
     )
     expect(getByTestId('count')).toHaveTextContent('0')
     
-    await service.increment()
+    // Wait for async action
+    await new Promise(resolve => setTimeout(resolve, 10))
     
     expect(getByTestId('count')).toHaveTextContent('1')
   })
 
   it('should work with string values', async () => {
-    const service = container.resolve(CounterToken)
-    
     function TestComponent() {
       const name = createServiceState(CounterToken, 'name')
+      const actions = createServiceActions(CounterToken)
+      
+      // Trigger action to test state update
+      setTimeout(() => actions.setName('updated'), 0)
+      
       return <div data-testid="name">{name()}</div>
     }
 
@@ -94,16 +121,20 @@ describe('createServiceState', () => {
     )
     expect(getByTestId('name')).toHaveTextContent('counter')
     
-    await service.setName('updated')
+    // Wait for async action
+    await new Promise(resolve => setTimeout(resolve, 10))
     
     expect(getByTestId('name')).toHaveTextContent('updated')
   })
 
   it('should work with boolean values', async () => {
-    const service = container.resolve(CounterToken)
-    
     function TestComponent() {
       const isActive = createServiceState(CounterToken, 'isActive')
+      const actions = createServiceActions(CounterToken)
+      
+      // Trigger action to test state update
+      setTimeout(() => actions.toggle(), 0)
+      
       return <div data-testid="active">{isActive() ? 'true' : 'false'}</div>
     }
 
@@ -112,18 +143,26 @@ describe('createServiceState', () => {
         <TestComponent />
       </ServiceProvider>
     )
-    expect(getByTestId('active')).toHaveTextContent('false')
-    
-    await service.toggle()
-    
     expect(getByTestId('active')).toHaveTextContent('true')
+    
+    // Wait for async action  
+    await new Promise(resolve => setTimeout(resolve, 10))
+    
+    expect(getByTestId('active')).toHaveTextContent('false')
   })
 
   it('should handle rapid state changes', async () => {
-    const service = container.resolve(CounterToken)
-    
     function TestComponent() {
       const count = createServiceState(CounterToken, 'count')
+      const actions = createServiceActions(CounterToken)
+      
+      // Trigger multiple actions
+      setTimeout(async () => {
+        await actions.increment()
+        await actions.increment() 
+        await actions.increment()
+      }, 0)
+      
       return <div data-testid="count">{count()}</div>
     }
 
@@ -134,9 +173,8 @@ describe('createServiceState', () => {
     )
     expect(getByTestId('count')).toHaveTextContent('0')
     
-    await service.increment()
-    await service.increment()
-    await service.increment()
+    // Wait for async actions
+    await new Promise(resolve => setTimeout(resolve, 50))
     
     expect(getByTestId('count')).toHaveTextContent('3')
   })

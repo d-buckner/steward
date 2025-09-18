@@ -1,4 +1,4 @@
-import { MessageService, withMessages, Message } from '@d-buckner/steward'
+import { Service, withMessages, Message } from '@d-buckner/steward'
 
 export interface ChatMessage {
   id: string
@@ -46,7 +46,7 @@ interface ChatMessages {
   SIMULATE_BOT_RESPONSE: () => ({}),
   CLEAR_CHAT: () => ({})
 })
-export class ChatService extends MessageService<ChatState, ChatMessages> {
+export class ChatService extends Service<ChatState, ChatMessages> {
   private typingTimer?: number
 
   constructor() {

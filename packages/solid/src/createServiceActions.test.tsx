@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render } from '@solidjs/testing-library'
-import { Service, ServiceContainer, createServiceToken } from '@d-buckner/steward'
+import { MessageService, withMessages, Message, ServiceContainer, createServiceToken } from '@d-buckner/steward'
 import { createServiceActions } from './createServiceActions'
 import { ServiceProvider } from './ServiceProvider'
 
@@ -10,7 +10,28 @@ interface TodoState {
   loading: boolean
 }
 
-class TodoService extends Service<TodoState> {
+interface TodoMessages {
+  ADD_ITEM: { text: string }
+  REMOVE_ITEM: { index: number }
+  SET_FILTER: { filter: 'all' | 'completed' | 'active' }
+  CLEAR_ALL: {}
+  LOAD_ITEMS: {}
+}
+
+@withMessages<TodoMessages>([
+  'ADD_ITEM',
+  'REMOVE_ITEM',
+  'SET_FILTER',
+  'CLEAR_ALL',
+  'LOAD_ITEMS'
+], {
+  ADD_ITEM: (text: string) => ({ text }),
+  REMOVE_ITEM: (index: number) => ({ index }),
+  SET_FILTER: (filter: 'all' | 'completed' | 'active') => ({ filter }),
+  CLEAR_ALL: () => ({}),
+  LOAD_ITEMS: () => ({})
+})
+class TodoService extends MessageService<TodoState, TodoMessages> {
   constructor() {
     super({
       items: [],
@@ -19,30 +40,44 @@ class TodoService extends Service<TodoState> {
     })
   }
 
-  async addItem(text: string): Promise<void> {
-    const current = this.state.items || []
-    this.setState('items', [...current, text])
-  }
+  async handle<K extends keyof TodoMessages>(
+    message: Message<TodoMessages, K>
+  ): Promise<void> {
+    switch (message.type) {
+      case 'ADD_ITEM': {
+        const { text } = message.payload as TodoMessages['ADD_ITEM']
+        const current = this.state.items || []
+        this.setState('items', [...current, text])
+        break
+      }
 
-  async removeItem(index: number): Promise<void> {
-    const current = this.state.items || []
-    this.setState('items', current.filter((_: string, i: number) => i !== index))
-  }
+      case 'REMOVE_ITEM': {
+        const { index } = message.payload as TodoMessages['REMOVE_ITEM']
+        const current = this.state.items || []
+        this.setState('items', current.filter((_: string, i: number) => i !== index))
+        break
+      }
 
-  async setFilter(filter: 'all' | 'completed' | 'active'): Promise<void> {
-    this.setState('filter', filter)
-  }
+      case 'SET_FILTER': {
+        const { filter } = message.payload as TodoMessages['SET_FILTER']
+        this.setState('filter', filter)
+        break
+      }
 
-  async clearAll(): Promise<void> {
-    this.setState('items', [])
-  }
+      case 'CLEAR_ALL': {
+        this.setState('items', [])
+        break
+      }
 
-  async loadItems(): Promise<void> {
-    this.setState('loading', true)
-    // Simulate async operation
-    await new Promise(resolve => setTimeout(resolve, 10))
-    this.setState('items', ['Loaded item 1', 'Loaded item 2'])
-    this.setState('loading', false)
+      case 'LOAD_ITEMS': {
+        this.setState('loading', true)
+        // Simulate async operation
+        await new Promise(resolve => setTimeout(resolve, 10))
+        this.setState('items', ['Loaded item 1', 'Loaded item 2'])
+        this.setState('loading', false)
+        break
+      }
+    }
   }
 }
 

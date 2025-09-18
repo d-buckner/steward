@@ -1,21 +1,24 @@
-import { ServiceContainer } from '@d-buckner/steward'
 import { ServiceProvider } from '@d-buckner/steward-solid'
 import { createSignal, For, Show } from 'solid-js'
 
-import { CounterService, TodoService, ChatService, CounterToken, TodoToken, ChatToken } from './services'
+import { CounterService, TodoService, ChatService, DataProcessingService, CounterToken, TodoToken, ChatToken, DataProcessingToken } from './services'
 import { CounterDemo } from './components/CounterDemo'
 import { TodoDemo } from './components/TodoDemo'
 import { ChatDemo } from './components/ChatDemo'
+import { DataProcessingDemo } from './components/DataProcessingDemo'
+import { DemoServiceContainer } from './core/DemoServiceContainer'
 
 import './styles.css'
+import './examples/headless-example'
 
 // Create container and register services
-const container = new ServiceContainer()
+const container = new DemoServiceContainer()
 container.register(CounterToken, CounterService)
 container.register(TodoToken, TodoService)
 container.register(ChatToken, ChatService)
+container.register(DataProcessingToken, DataProcessingService)
 
-type DemoTab = 'counter' | 'todos' | 'chat'
+type DemoTab = 'counter' | 'todos' | 'chat' | 'worker'
 
 const demos = [
   { 
@@ -35,6 +38,12 @@ const demos = [
     title: 'Chat', 
     emoji: '💬',
     description: 'Real-time messaging & async operations'
+  },
+  { 
+    id: 'worker' as DemoTab, 
+    title: 'Worker Processing', 
+    emoji: '🔧',
+    description: 'CPU-intensive tasks in Web Workers'
   }
 ]
 
@@ -47,6 +56,7 @@ function App() {
       case 'counter': return <CounterDemo />
       case 'todos': return <TodoDemo />
       case 'chat': return <ChatDemo />
+      case 'worker': return <DataProcessingDemo />
       default: return <CounterDemo />
     }
   }

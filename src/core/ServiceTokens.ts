@@ -1,5 +1,4 @@
 import { Service } from './Service'
-import { MessageService } from './MessageService'
 
 // Base token type
 export interface TypedServiceToken<T extends Service = Service> {
@@ -35,4 +34,4 @@ export type ServiceFromToken<T> = T extends TypedServiceToken<infer S> ? S : nev
 export type StateFromToken<T> = ServiceFromToken<T> extends Service<infer State> ? State : never
 
 // Type helper for extracting message types from message services
-export type MessagesFromToken<T> = ServiceFromToken<T> extends MessageService<any, infer Messages> ? Messages : never
+export type MessagesFromToken<T> = ServiceFromToken<T> extends Service<any, infer Messages> ? Messages : never
