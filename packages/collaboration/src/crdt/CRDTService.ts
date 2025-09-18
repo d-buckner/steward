@@ -1,24 +1,26 @@
 import * as Automerge from '@automerge/automerge'
-import { Service } from './Service'
-
-export type ChangeFunction<T> = (doc: T) => void
+import { Service, ServiceState, ServiceMessages } from '@steward/core'
+import { ChangeFunction, CRDTState, CRDTDocument } from './types'
 
 /**
  * CRDTService extends Service to provide collaborative state management
  * using Automerge CRDT for conflict-free distributed state synchronization
  */
-export abstract class CRDTService<TState extends Record<string, any> = Record<string, any>> extends Service<TState> {
-  private doc: Automerge.Doc<TState>
+export abstract class CRDTService<
+  TState extends CRDTState,
+  Messages extends ServiceMessages = ServiceMessages
+> extends Service<TState, Messages> {
+  private doc: CRDTDocument<TState>
 
   constructor(initialState: TState) {
     // Initialize Automerge document
     const doc = Automerge.from(initialState as any)
-    
+
     // Initialize Service with initial Automerge state
     super(doc as TState)
-    
-    this.doc = doc as Automerge.Doc<TState>
-    
+
+    this.doc = doc as CRDTDocument<TState>
+
     // Override the state proxy to always return from Automerge document
     this.createCRDTStateProxy()
   }
@@ -30,7 +32,7 @@ export abstract class CRDTService<TState extends Record<string, any> = Record<st
     // We need to replace the state proxy without redefining it
     // Delete the existing property so we can redefine it
     delete (this as any).state
-    
+
     Object.defineProperty(this, 'state', {
       get: () => {
         return new Proxy(this.doc, {
@@ -55,7 +57,7 @@ export abstract class CRDTService<TState extends Record<string, any> = Record<st
   protected change(changeFn: ChangeFunction<TState>): void {
     const oldDoc = this.doc
     const newDoc = Automerge.change(this.doc, changeFn)
-    
+
     if (newDoc !== this.doc) {
       this.doc = newDoc
       this.emitChangedKeys(oldDoc, newDoc)
@@ -65,7 +67,7 @@ export abstract class CRDTService<TState extends Record<string, any> = Record<st
   /**
    * Get the underlying Automerge document
    */
-  getDocument(): Automerge.Doc<TState> {
+  getDocument(): CRDTDocument<TState> {
     return this.doc
   }
 
@@ -81,7 +83,7 @@ export abstract class CRDTService<TState extends Record<string, any> = Record<st
    */
   load(binary: Uint8Array): void {
     const loadedDoc = Automerge.load<TState>(binary)
-    
+
     // When loading, emit all keys since we're replacing the entire document
     this.doc = loadedDoc
     Object.keys(this.doc).forEach(key => {
@@ -93,10 +95,10 @@ export abstract class CRDTService<TState extends Record<string, any> = Record<st
   /**
    * Merge changes from another Automerge document
    */
-  merge(otherDoc: Automerge.Doc<TState>): void {
+  merge(otherDoc: CRDTDocument<TState>): void {
     const oldDoc = this.doc
     const mergedDoc = Automerge.merge(this.doc, otherDoc)
-    
+
     if (mergedDoc !== this.doc) {
       this.doc = mergedDoc
       this.emitChangedKeys(oldDoc, mergedDoc)
@@ -122,7 +124,7 @@ export abstract class CRDTService<TState extends Record<string, any> = Record<st
   /**
    * Emit events for keys that changed between two documents
    */
-  private emitChangedKeys(oldDoc: Automerge.Doc<TState>, newDoc: Automerge.Doc<TState>): void {
+  private emitChangedKeys(oldDoc: CRDTDocument<TState>, newDoc: CRDTDocument<TState>): void {
     // Since Automerge is immutable, reference inequality means the value changed
     Object.keys(newDoc).forEach(key => {
       const typedKey = key as keyof TState
@@ -132,11 +134,10 @@ export abstract class CRDTService<TState extends Record<string, any> = Record<st
     })
   }
 
-
   /**
-   * Override getCurrentState to return current Automerge document state
+   * Override getState to return current Automerge document state
    */
-  getCurrentState(): Record<string, any> {
+  getState(): Record<string, any> {
     return { ...this.doc } as Record<string, any>
   }
 }

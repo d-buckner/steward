@@ -1,20 +1,20 @@
 import { ServiceEventBus } from './ServiceEventBus'
 import { EventBus, EventHandler, EventSubscription } from '../types'
-import { 
-  MessageDefinition, 
-  Message, 
-  MessageHandler, 
-  createMessage, 
-  generateMessageId 
+import {
+  Message,
+  MessageHandler,
+  createMessage,
+  generateMessageId
 } from './Messages'
+import { ServiceState, ServiceMessages } from './ServiceTypes'
 
 /**
  * Message-driven service with reactive state management
  * All services in Steward should extend this class for pure message-passing architecture
  */
 export abstract class Service<
-  TState extends Record<string, any> = Record<string, any>,
-  Messages extends MessageDefinition = {}
+  TState extends ServiceState = ServiceState,
+  Messages extends ServiceMessages = ServiceMessages
 > implements EventBus, MessageHandler<Messages> {
   private eventBus = new ServiceEventBus<TState>()
   private _state: TState
@@ -115,25 +115,29 @@ export abstract class Service<
   ): Promise<void> | void
 
   // Send message to this service
-  async send<K extends keyof Messages>(
+  send<K extends keyof Messages>(
     type: K,
     payload: Messages[K],
     correlationId?: string
-  ): Promise<void> {
-    // handle method is abstract, so it's always implemented
-
+  ): void {
     const message = createMessage<Messages, K>(type, payload, correlationId)
-    
+
     // Store in history for debugging
     this.messageHistory.push(message as Message<Messages>)
-    
+
     // Log in development
     if (process.env.NODE_ENV === 'development') {
       console.log(`[${this.constructor.name}] Handling message:`, message)
     }
-    
+
     try {
-      await this.handle(message)
+      const result = this.handle(message)
+
+      // If handle returns a Promise, we could log a warning about async handlers
+      if (result instanceof Promise) {
+        console.warn(`[${this.constructor.name}] Async handle() detected but send() is synchronous. Consider using sendAsync() when available.`)
+        // For now, we'll let the Promise resolve in the background
+      }
     } catch (error) {
       console.error(`[${this.constructor.name}] Message handling error:`, error)
       throw error

@@ -1,4 +1,4 @@
-import { Service, withMessages, Message } from '@d-buckner/steward'
+import { Service, withMessages, Message, ServiceState, ServiceMessages } from '@d-buckner/steward'
 
 export interface Todo {
   id: string
@@ -9,14 +9,14 @@ export interface Todo {
   dueDate?: Date
 }
 
-interface TodoState {
+interface TodoState extends ServiceState {
   items: Todo[]
   filter: 'all' | 'active' | 'completed'
   loading: boolean
   searchQuery: string
 }
 
-interface TodoMessages {
+interface TodoMessages extends ServiceMessages {
   ADD_ITEM: { text: string; priority: 'low' | 'medium' | 'high'; dueDate?: Date }
   TOGGLE_ITEM: { id: string }
   DELETE_ITEM: { id: string }

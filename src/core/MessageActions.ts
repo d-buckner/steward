@@ -31,14 +31,14 @@ export function createMessageActions<
     
     if (customAction) {
       // Use custom parameter mapping
-      actions[methodName] = async (...args: any[]) => {
+      actions[methodName] = (...args: any[]) => {
         const payload = customAction(...args)
-        return service.send(type, payload)
+        service.send(type, payload)
       }
     } else {
       // Default behavior: single param or empty
-      actions[methodName] = async (payload?: any) => {
-        return service.send(type, payload || {})
+      actions[methodName] = (payload?: any) => {
+        service.send(type, payload || {})
       }
     }
   })
@@ -65,7 +65,7 @@ export function withMessages<Messages extends MessageDefinition>(
 ) {
   return function<T extends new (...args: any[]) => Service<any, Messages>>(
     constructor: T
-  ) {
+  ): T {
     // Store message types and action creators on the constructor for reflection
     ;(constructor.prototype as any).__messageTypes = messageTypes
     ;(constructor.prototype as any).__actionCreators = actionCreators

@@ -1,4 +1,4 @@
-import { TypedServiceToken, ServiceFromToken, isWorkerService, getWorkerOptions } from '@d-buckner/steward'
+import { TypedServiceToken, ServiceFromToken, isWorkerService, getWorkerOptions, Service, ServiceState, ServiceMessages } from '@d-buckner/steward'
 import { DemoWorkerProxy } from './DemoWorkerProxy'
 
 /**
@@ -9,11 +9,11 @@ export class DemoServiceContainer {
   private instances = new Map<symbol, unknown>()
   private services = new Map<symbol, new (...args: any[]) => any>()
 
-  register<T extends TypedServiceToken>(token: T, serviceConstructor: new (...args: any[]) => any): void {
+  register<T extends TypedServiceToken<Service<ServiceState, ServiceMessages>>>(token: T, serviceConstructor: new (...args: any[]) => ServiceFromToken<T>): void {
     this.services.set(token.symbol, serviceConstructor)
   }
 
-  resolve<T extends TypedServiceToken>(token: T): ServiceFromToken<T> {
+  resolve<T extends TypedServiceToken<Service<ServiceState, ServiceMessages>>>(token: T): ServiceFromToken<T> {
     // Check if we already have an instance
     const existingInstance = this.instances.get(token.symbol)
     if (existingInstance) {

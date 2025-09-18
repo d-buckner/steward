@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as Automerge from '@automerge/automerge'
-import { CRDTService } from '../src/core/CRDTService'
+import { CRDTService } from '../../src/crdt/CRDTService'
 
 // Test collaborative state
 interface InstrumentState {

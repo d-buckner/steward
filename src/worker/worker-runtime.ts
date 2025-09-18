@@ -21,42 +21,44 @@ interface WorkerMessage {
 // Global service instance running in this worker
 let serviceInstance: any = null
 
+// Service registry for worker
+const serviceRegistry = new Map<string, new (...args: any[]) => any>()
+
+/**
+ * Register a service class in the worker runtime
+ * This avoids the need for eval by pre-registering service constructors
+ */
+export function registerWorkerService(name: string, serviceClass: new (...args: any[]) => any): void {
+  serviceRegistry.set(name, serviceClass)
+}
+
 /**
  * Initialize a service instance in the worker context
  */
 async function initializeService(data: WorkerMessage): Promise<void> {
   try {
-    const { serviceCode, serviceName, initialState, messageTypes, actionCreators } = data
+    const { serviceName, messageTypes, actionCreators } = data
 
-    if (!serviceCode || !serviceName) {
-      throw new Error('Service code and name are required for worker initialization')
+    if (!serviceName) {
+      throw new Error('Service name is required for worker initialization')
     }
 
-    // Create a module-like environment for the service code
-    // Note: This is a simplified evaluation - in production you'd want proper module loading
-
-    // Evaluate the service class code in worker context
-    // Note: In production, you'd want to use proper module loading instead of eval
-    const evalCode = `
-      ${serviceCode}
-      ${serviceName}
-    `
-    
-    const ServiceClass = eval(`(function() {
-      ${evalCode}
-      return ${serviceName};
-    })()`)
+    // Get service class from registry instead of using eval
+    const ServiceClass = serviceRegistry.get(serviceName)
+    if (!ServiceClass) {
+      throw new Error(`Service '${serviceName}' not registered in worker. Use registerWorkerService() to register it.`)
+    }
 
     // Restore decorator metadata
     if (messageTypes) {
-      ServiceClass.__messageTypes = messageTypes
+      (ServiceClass as any).__messageTypes = messageTypes
     }
     if (actionCreators) {
-      ServiceClass.__actionCreators = actionCreators
+      (ServiceClass as any).__actionCreators = actionCreators
     }
 
     // Create service instance
-    serviceInstance = new ServiceClass(initialState)
+    serviceInstance = new ServiceClass()
 
     // Set up event forwarding to main thread
     setupEventForwarding()

@@ -8,6 +8,7 @@ interface TestState {
   metadata: { id: string; tags: string[] }
 }
 
+// Simple service for testing basic functionality (no message handling)
 class TestService extends Service<TestState> {
   constructor() {
     super({
@@ -16,6 +17,11 @@ class TestService extends Service<TestState> {
       enabled: false,
       metadata: { id: 'test-id', tags: [] }
     })
+  }
+
+  // Required implementation - this service doesn't use messages
+  handle(): void {
+    // No-op for basic service tests
   }
 
   // Expose protected methods for testing
@@ -49,7 +55,7 @@ describe('Service', () => {
       
       expect(service.getCount()).toBe(0)
       expect(service.getName()).toBe('test')
-      expect(service.getCurrentState()).toEqual({
+      expect(service.getState()).toEqual({
         count: 0,
         name: 'test',
         enabled: false,
@@ -214,7 +220,7 @@ describe('Service', () => {
       const originalMetadata = { id: 'original', tags: ['tag1'] }
       service.updateMultiple({ metadata: originalMetadata })
       
-      const retrievedState = service.getCurrentState()
+      const retrievedState = service.getState()
       
       // Should contain all current state
       expect(retrievedState.metadata).toEqual(originalMetadata)

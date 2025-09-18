@@ -1,6 +1,6 @@
-import { Service, withMessages, withWorker, Message, createServiceToken } from '@d-buckner/steward'
+import { Service, withMessages, withWorker, Message, createServiceToken, ServiceState, ServiceMessages } from '@d-buckner/steward'
 
-interface DataProcessingState {
+interface DataProcessingState extends ServiceState {
   isProcessing: boolean
   progress: number
   result: number | null
@@ -9,7 +9,7 @@ interface DataProcessingState {
   lastProcessedAt: number
 }
 
-interface DataProcessingMessages {
+interface DataProcessingMessages extends ServiceMessages {
   START_PROCESSING: { items: number[], operation: 'sum' | 'fibonacci' | 'prime_count' }
   CANCEL_PROCESSING: {}
   RESET: {}

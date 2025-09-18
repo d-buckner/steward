@@ -1,4 +1,4 @@
-import { Service, withMessages, Message } from '@d-buckner/steward'
+import { Service, withMessages, Message, ServiceState, ServiceMessages } from '@d-buckner/steward'
 
 export interface ChatMessage {
   id: string
@@ -8,7 +8,7 @@ export interface ChatMessage {
   type: 'user' | 'system' | 'bot'
 }
 
-interface ChatState {
+interface ChatState extends ServiceState {
   messages: ChatMessage[]
   currentUser: string
   isTyping: boolean
@@ -16,7 +16,7 @@ interface ChatState {
   lastActivity: number
 }
 
-interface ChatMessages {
+interface ChatMessages extends ServiceMessages {
   SEND_MESSAGE: { text: string }
   SET_USER: { username: string }
   START_TYPING: {}

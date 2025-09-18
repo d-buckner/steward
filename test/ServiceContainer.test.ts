@@ -11,7 +11,12 @@ class TestService extends Service<TestState> {
   constructor() {
     super({ count: 0 })
   }
-  
+
+  // Required implementation - this service doesn't use messages
+  handle(): void {
+    // No-op for container tests
+  }
+
   increment() {
     const currentCount = this.state.count || 0
     this.setState('count', currentCount + 1)

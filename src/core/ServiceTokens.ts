@@ -1,7 +1,8 @@
 import { Service } from './Service'
+import { ServiceState, ServiceMessages } from './ServiceTypes'
 
 // Base token type
-export interface TypedServiceToken<T extends Service = Service> {
+export interface TypedServiceToken<T extends Service<ServiceState, ServiceMessages> = Service<ServiceState, ServiceMessages>> {
   readonly __type: T
   readonly symbol: symbol
   readonly name: string
@@ -11,7 +12,7 @@ export interface TypedServiceToken<T extends Service = Service> {
 export interface ServiceRegistry {}
 
 // Helper to create typed tokens
-export function createServiceToken<T extends Service>(name: string): TypedServiceToken<T> {
+export function createServiceToken<T extends Service<ServiceState, ServiceMessages>>(name: string): TypedServiceToken<T> {
   return {
     __type: {} as T,
     symbol: Symbol(name),

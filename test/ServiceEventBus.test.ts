@@ -144,7 +144,7 @@ describe('ServiceEventBus', () => {
       bus.emit('numberEvent', 42)
       bus.emit('objectEvent', { id: 1, name: 'test' })
       
-      const state = bus.getCurrentState()
+      const state = bus.getState()
       
       expect(state).toEqual({
         stringEvent: 'test',
@@ -156,7 +156,7 @@ describe('ServiceEventBus', () => {
     it('should return empty object when no events emitted', () => {
       const bus = new ServiceEventBus<TestEvents>()
       
-      expect(bus.getCurrentState()).toEqual({})
+      expect(bus.getState()).toEqual({})
     })
   })
 

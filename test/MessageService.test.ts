@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { MessageService, withMessages, Message } from '../src/index'
+import { Service, withMessages, Message } from '../src/index'
 
 // Define message types for a Todo service
 interface TodoMessages {
@@ -29,7 +29,7 @@ interface TodoState {
   'LOAD_ITEMS_SUCCESS',
   'LOAD_ITEMS_ERROR'
 ])
-class TodoMessageService extends MessageService<TodoState, TodoMessages> {
+class TodoService extends Service<TodoState, TodoMessages> {
   constructor() {
     super({
       items: [],
@@ -107,11 +107,11 @@ class TodoMessageService extends MessageService<TodoState, TodoMessages> {
   }
 }
 
-describe('MessageService', () => {
-  let service: TodoMessageService
+describe('Service', () => {
+  let service: TodoService
 
   beforeEach(() => {
-    service = new TodoMessageService()
+    service = new TodoService()
   })
 
   it('should handle ADD_ITEM messages', async () => {

@@ -1,0 +1,52 @@
+{
+  "name": "@steward/collaboration",
+  "version": "0.1.0",
+  "description": "Collaborative features for Steward - CRDTs, real-time sync, and presence awareness",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "crdt",
+    "collaboration",
+    "real-time",
+    "automerge",
+    "steward"
+  ],
+  "author": "Daniel Buckner",
+  "license": "MIT",
+  "peerDependencies": {
+    "@steward/core": "workspace:*"
+  },
+  "dependencies": {
+    "@automerge/automerge": "^2.2.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./crdt": {
+      "import": "./dist/crdt/index.js",
+      "require": "./dist/crdt/index.js",
+      "types": "./dist/crdt/index.d.ts"
+    },
+    "./sync": {
+      "import": "./dist/sync/index.js",
+      "require": "./dist/sync/index.js",
+      "types": "./dist/sync/index.d.ts"
+    }
+  }
+}

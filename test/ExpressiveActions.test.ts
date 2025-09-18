@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { 
-  MessageService, 
-  Message, 
-  withMessages, 
+import {
+  Service,
+  Message,
+  withMessages,
   ServiceContainer,
   createServiceToken,
   ActionCreators
@@ -46,7 +46,7 @@ const todoActionCreators: ActionCreators<TodoMessages> = {
   ['ADD_ITEM', 'UPDATE_ITEM', 'SET_FILTER', 'TOGGLE_ITEM', 'CLEAR_ALL', 'ASSIGN_TO'],
   todoActionCreators
 )
-class ExpressiveTodoService extends MessageService<TodoState, TodoMessages> {
+class ExpressiveTodoService extends Service<TodoState, TodoMessages> {
   constructor() {
     super({
       items: [],

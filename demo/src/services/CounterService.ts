@@ -1,6 +1,6 @@
-import { Service, withMessages, Message } from '@d-buckner/steward'
+import { Service, withMessages, Message, ServiceState, ServiceMessages } from '@d-buckner/steward'
 
-interface CounterState {
+interface CounterState extends ServiceState {
   count: number
   step: number
   name: string
@@ -8,7 +8,7 @@ interface CounterState {
   history: number[]
 }
 
-interface CounterMessages {
+interface CounterMessages extends ServiceMessages {
   INCREMENT: {}
   DECREMENT: {}
   SET_STEP: { step: number }
