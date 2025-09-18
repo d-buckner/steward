@@ -29,7 +29,7 @@ function TodoApp() {
 }
 ```
 
-Now imagine you need that todo processing to be really fast - maybe you're dealing with thousands of items. You'd need to move the work to a Web Worker, which means:
+Now imagine you need that todo processing to be really fast - maybe you're dealing with millions of items. You'd need to move the work to a Web Worker, which means:
 
 1. Rewriting your logic to work with postMessage
 2. Serializing/deserializing data across the worker boundary
