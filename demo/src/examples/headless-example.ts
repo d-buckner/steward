@@ -4,7 +4,7 @@
  */
 
 import { ServiceContainer, createServiceClient, ServiceStateObserver } from '@d-buckner/steward'
-import { CounterService, TodoService, CounterToken, TodoToken } from '../services'
+import { CounterService, TodoService, CounterToken, TodoToken } from '../services/index.js'
 
 // Create service container
 const container = new ServiceContainer()

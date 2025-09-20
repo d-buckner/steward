@@ -26,6 +26,20 @@ export class DataProcessingService extends Service<DataProcessingState> {
       totalItems: 0,
       lastProcessedAt: 0
     })
+
+    // Detect if we're running in a worker vs main thread
+    const context = typeof Window === 'undefined' ? 'Worker Thread' : 'Main Thread'
+    const hasDOM = typeof document !== 'undefined'
+    const workerGlobalScope = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope
+
+    console.log(`🔧 DataProcessingService initialized in: ${context}`)
+    console.log(`📊 Environment details:`, {
+      hasWindow: typeof window !== 'undefined',
+      hasDocument: hasDOM,
+      isWorkerGlobalScope: workerGlobalScope,
+      selfType: typeof self,
+      globalThisType: typeof globalThis
+    })
   }
 
   async startProcessing(items: number[], operation: 'sum' | 'fibonacci' | 'prime_count'): Promise<void> {
@@ -34,6 +48,11 @@ export class DataProcessingService extends Service<DataProcessingState> {
     }
 
     this.shouldCancel = false
+
+    // Log processing start with thread context
+    const isInWorker = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope
+    console.log(`🚀 Starting ${operation} processing of ${items.length} items in ${isInWorker ? 'WORKER THREAD' : 'MAIN THREAD'}`)
+
     this.setStates({
       isProcessing: true,
       progress: 0,

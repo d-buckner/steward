@@ -1,4 +1,4 @@
-import { createSignal, createEffect, onCleanup } from 'solid-js'
+import { createSignal } from 'solid-js'
 import { createServiceState, createServiceActions } from '@d-buckner/steward-solid'
 import { DataProcessingToken } from '../services'
 
@@ -11,66 +11,15 @@ export function DataProcessingDemo() {
 
   // Get service actions - works with both regular services and worker services
   const actions = createServiceActions(DataProcessingToken)
-  console.log('[DataProcessingDemo] Actions created:', actions)
-  console.log('[DataProcessingDemo] startProcessing method:', actions.startProcessing)
-  console.log('[DataProcessingDemo] Actions object keys:', Object.keys(actions))
-  console.log('[DataProcessingDemo] Actions proxy target:', actions)
 
-  // Test if the proxy works for ownKeys
-  console.log('[DataProcessingDemo] Actions ownKeys:', Object.getOwnPropertyNames(actions))
-  console.log('[DataProcessingDemo] Actions has startProcessing:', 'startProcessing' in actions)
-  console.log('[DataProcessingDemo] Actions startProcessing descriptor:', Object.getOwnPropertyDescriptor(actions, 'startProcessing'))
-
-  // Expose validation function globally for manual testing
-  ;(window as any).__validateDataProcessing = async () => {
-    console.log('🧪 [VALIDATION] Starting DataProcessing validation...')
-    console.log('🔧 [VALIDATION] Actions object:', actions)
-    console.log('🔧 [VALIDATION] Available action methods:', Object.getOwnPropertyNames(actions))
-    console.log('🔧 [VALIDATION] startProcessing type:', typeof actions.startProcessing)
-
-    try {
-      console.log('🚀 [VALIDATION] Testing startProcessing...')
-      const testItems = [1, 2, 3, 4, 5]
-      const expectedResult = 15 // 1+2+3+4+5 = 15
-
-      const result = await actions.startProcessing(testItems, 'sum')
-      console.log('✅ [VALIDATION] startProcessing completed with result:', result)
-      console.log('🎯 [VALIDATION] Expected result:', expectedResult)
-
-      const success = result === expectedResult
-      console.log(success ? '🎉 [VALIDATION] SUCCESS - Action routing is working!' : '❌ [VALIDATION] FAILED - Result mismatch')
-
-      return { success, result, expected: expectedResult, actions: Object.getOwnPropertyNames(actions) }
-    } catch (error) {
-      console.error('❌ [VALIDATION] FAILED with error:', error)
-      return { success: false, error: error.message, actions: Object.getOwnPropertyNames(actions) }
-    }
-  }
-
-  // Auto-trigger validation in development after a delay
-  if (process.env.NODE_ENV === 'development') {
-    setTimeout(() => {
-      console.log('🔄 [VALIDATION] Auto-triggering validation test...')
-      ;(window as any).__validateDataProcessing?.()
-    }, 3000)
-  }
 
   const handleStartProcessing = async () => {
-    console.log('[DataProcessingDemo] Starting processing...')
-    console.log('[DataProcessingDemo] Actions object:', actions)
-    console.log('[DataProcessingDemo] startProcessing method type:', typeof actions.startProcessing)
-    console.log('[DataProcessingDemo] startProcessing method:', actions.startProcessing)
-
     const items = Array.from({ length: itemCount() }, (_, i) => Math.floor(Math.random() * 100) + 1)
-    console.log('[DataProcessingDemo] Calling startProcessing with', items.length, 'items and operation:', operation())
 
     try {
-      console.log('[DataProcessingDemo] About to call actions.startProcessing...')
-      const result = await actions.startProcessing(items, operation())
-      console.log('[DataProcessingDemo] startProcessing completed with result:', result)
+      await actions.startProcessing(items, operation())
     } catch (error) {
-      console.error('[DataProcessingDemo] startProcessing failed with error:', error)
-      console.error('[DataProcessingDemo] Error stack:', error.stack)
+      console.error('Processing failed:', error)
     }
   }
 

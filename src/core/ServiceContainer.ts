@@ -29,31 +29,23 @@ export class ServiceContainer {
 
     // Check if service should run in a worker
     if (isWorkerService(ServiceConstructor)) {
-      console.log(`[ServiceContainer] 🔍 Detected worker service: ${token.name}`)
-
       // Create worker proxy instead of direct service instance
       const workerOptions = getWorkerOptions(ServiceConstructor)
-      console.log(`[ServiceContainer] 📋 Worker options:`, workerOptions)
 
       // Get initial state by creating a temporary instance of the service
       // This is safe because we only need the initial state, not to run the service
       let initialState: any = {}
       try {
-        console.log(`[ServiceContainer] 🔍 Extracting initial state from service constructor`)
         const tempInstance = new ServiceConstructor()
         initialState = tempInstance.getState()
-        console.log(`[ServiceContainer] ✅ Extracted initial state:`, initialState)
 
         // Clean up the temporary instance if it has a cleanup method
         if (typeof tempInstance.clear === 'function') {
           tempInstance.clear()
         }
       } catch (error) {
-        console.warn(`[ServiceContainer] ⚠️ Could not extract initial state, using empty state:`, error)
         initialState = {}
       }
-
-      console.log(`[ServiceContainer] 🏗️ Creating WorkerProxy for ${token.name}`)
 
       instance = new WorkerProxy(
         ServiceConstructor,
@@ -61,17 +53,16 @@ export class ServiceContainer {
         workerOptions
       )
 
-      console.log(`[ServiceContainer] ✅ WorkerProxy created for ${token.name}`)
-      console.log(`[ServiceContainer] WorkerProxy instance:`, instance)
-
       if (process.env.NODE_ENV === 'development') {
         console.log(`🔧 Created worker service: ${token.name}`, workerOptions)
       }
     } else {
-      console.log(`[ServiceContainer] 📦 Creating regular service instance for ${token.name}`)
       // Create regular service instance
       instance = new ServiceConstructor()
-      console.log(`[ServiceContainer] ✅ Regular service instance created for ${token.name}`)
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔧 Created service: ${token.name}`)
+      }
     }
 
     this.instances.set(token.symbol, instance)

@@ -285,20 +285,9 @@ export class WorkerProxy<
   }
 
   private emit<T = any>(event: string, value: T): void {
-    console.log(`[WorkerProxy.emit] 📡 Emitting event: ${event} with value:`, value)
-    console.log(`[WorkerProxy.emit] 👂 Listener count:`, this.getListenerCount(event))
     const listeners = this.eventListeners.get(event)
     if (listeners) {
-      console.log(`[WorkerProxy.emit] 🔊 Calling ${listeners.size} listeners for event: ${event}`)
-      let index = 0
-      listeners.forEach((handler) => {
-        index++
-        console.log(`[WorkerProxy.emit] 📞 Calling listener ${index} for ${event}`)
-        handler(value)
-        console.log(`[WorkerProxy.emit] ✅ Listener ${index} completed for ${event}`)
-      })
-    } else {
-      console.log(`[WorkerProxy.emit] 🔇 No listeners found for event: ${event}`)
+      listeners.forEach(handler => handler(value))
     }
   }
 

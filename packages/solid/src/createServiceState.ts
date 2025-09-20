@@ -25,11 +25,7 @@ export function createServiceState<T extends TypedServiceToken>(
       const [value, setValue] = createSignal(service.state[key])
 
       const subscription = service.on(key, (newValue) => {
-        console.log(`[createServiceState] 🔄 State change received for ${key}:`, newValue)
-        console.log(`[createServiceState] 🔍 Service type:`, service.constructor.name)
-        console.log(`[createServiceState] 📊 Current signal value:`, value())
         setValue(() => newValue)
-        console.log(`[createServiceState] ✅ Signal updated for ${key}:`, value())
       })
 
       onCleanup(() => {
