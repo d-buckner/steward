@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.16",
+    "puppeteer": "^24.22.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.5",
     "vite-plugin-solid": "^2.10.2",

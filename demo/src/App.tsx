@@ -18,6 +18,15 @@ container.register(TodoToken, TodoService)
 container.register(ChatToken, ChatService)
 container.register(DataProcessingToken, DataProcessingService)
 
+console.log('[App] All services registered')
+console.log('[App] DataProcessingService constructor:', DataProcessingService)
+console.log('[App] DataProcessingToken:', DataProcessingToken)
+
+// Expose debugging information globally
+;(window as any).demoContainer = container
+;(window as any).DataProcessingToken = DataProcessingToken
+;(window as any).DataProcessingService = DataProcessingService
+
 type DemoTab = 'counter' | 'todos' | 'chat' | 'worker'
 
 const demos = [
@@ -135,8 +144,8 @@ function App() {
                     using <code>service.state.property</code>
                   </li>
                   <li>
-                    <strong>📨 Message-driven Architecture:</strong> Pure message handlers with location transparency
-                    using <code>@withMessages</code> decorator
+                    <strong>📨 Auto-derived Actions:</strong> Service methods automatically become callable actions
+                    with full type safety and message-driven execution
                   </li>
                   <li>
                     <strong>🚀 Push-based Reactivity:</strong> State updates propagate through event system
@@ -172,14 +181,14 @@ class CounterService extends Service {
   }
 }
 
-// SolidJS component usage  
+// SolidJS component usage
 function Counter() {
-  const count = createServiceState(CounterToken, 'count')
+  const state = createServiceState(CounterToken)
   const actions = createServiceActions(CounterToken)
-  
+
   return (
     <button onClick={actions.increment}>
-      Count: {count()}
+      Count: {state.count}
     </button>
   )
 }`}</code></pre>

@@ -3,17 +3,13 @@ import { createMemo, For } from 'solid-js'
 import { CounterToken } from '../services'
 
 export function CounterDemo() {
-  const count = createServiceState(CounterToken, 'count')
-  const step = createServiceState(CounterToken, 'step')
-  const isActive = createServiceState(CounterToken, 'isActive')
-  const history = createServiceState(CounterToken, 'history')
-  
+  const state = createServiceState(CounterToken)
   const actions = createServiceActions(CounterToken)
   
   // Computed values using SolidJS memos
-  const canUndo = createMemo(() => (history()?.length || 0) > 1)
+  const canUndo = createMemo(() => (state.history?.length || 0) > 1)
   const stats = createMemo(() => {
-    const h = history() || []
+    const h = state.history || []
     if (h.length === 0) return null
     
     return {
@@ -33,8 +29,8 @@ export function CounterDemo() {
       </p>
       
       <div class="counter-display">
-        <div class="count-value" classList={{ inactive: !isActive() }}>
-          {count()}
+        <div class="count-value" classList={{ inactive: !state.isActive }}>
+          {state.count}
         </div>
         
         <div class="counter-controls">
@@ -42,17 +38,17 @@ export function CounterDemo() {
             <button 
               class="counter-btn decrement"
               onClick={actions.decrement}
-              disabled={!isActive()}
+              disabled={!state.isActive}
             >
-              -{step()}
+              -{state.step}
             </button>
             
             <button 
               class="counter-btn increment"
               onClick={actions.increment}
-              disabled={!isActive()}
+              disabled={!state.isActive}
             >
-              +{step()}
+              +{state.step}
             </button>
           </div>
           
@@ -62,19 +58,19 @@ export function CounterDemo() {
               type="range"
               min="1"
               max="10"
-              value={step()}
+              value={state.step}
               onInput={(e) => actions.setStep(parseInt(e.target.value))}
             />
-            <span>{step()}</span>
+            <span>{state.step}</span>
           </div>
           
           <div class="toggle-group">
             <button
               class="toggle-btn"
-              classList={{ active: isActive() }}
+              classList={{ active: state.isActive }}
               onClick={actions.toggle}
             >
-              {isActive() ? '🟢 Active' : '🔴 Paused'}
+              {state.isActive ? '🟢 Active' : '🔴 Paused'}
             </button>
             
             <button
@@ -124,11 +120,11 @@ export function CounterDemo() {
       <div class="history-section">
         <h4>📈 History</h4>
         <div class="history-list">
-          <For each={history()}>
+          <For each={state.history}>
             {(value, index) => (
               <span 
                 class="history-item"
-                classList={{ current: index() === (history()?.length || 0) - 1 }}
+                classList={{ current: index() === (state.history?.length || 0) - 1 }}
               >
                 {value}
               </span>

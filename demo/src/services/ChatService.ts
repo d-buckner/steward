@@ -1,4 +1,4 @@
-import { Service, withMessages, Message, ServiceState, ServiceMessages } from '@d-buckner/steward'
+import { Service, ServiceState, Message } from '@d-buckner/steward'
 
 export interface ChatMessage {
   id: string
@@ -16,37 +16,7 @@ interface ChatState extends ServiceState {
   lastActivity: number
 }
 
-interface ChatMessages extends ServiceMessages {
-  SEND_MESSAGE: { text: string }
-  SET_USER: { username: string }
-  START_TYPING: {}
-  STOP_TYPING: {}
-  USER_JOIN: { username: string }
-  USER_LEAVE: { username: string }
-  SIMULATE_BOT_RESPONSE: {}
-  CLEAR_CHAT: {}
-}
-
-@withMessages<ChatMessages>([
-  'SEND_MESSAGE',
-  'SET_USER',
-  'START_TYPING',
-  'STOP_TYPING', 
-  'USER_JOIN',
-  'USER_LEAVE',
-  'SIMULATE_BOT_RESPONSE',
-  'CLEAR_CHAT'
-], {
-  SEND_MESSAGE: (text: string) => ({ text }),
-  SET_USER: (username: string) => ({ username }),
-  START_TYPING: () => ({}),
-  STOP_TYPING: () => ({}),
-  USER_JOIN: (username: string) => ({ username }),
-  USER_LEAVE: (username: string) => ({ username }),
-  SIMULATE_BOT_RESPONSE: () => ({}),
-  CLEAR_CHAT: () => ({})
-})
-export class ChatService extends Service<ChatState, ChatMessages> {
+export class ChatService extends Service<ChatState> {
   private typingTimer?: number
 
   constructor() {
@@ -67,161 +37,140 @@ export class ChatService extends Service<ChatState, ChatMessages> {
     })
   }
 
-  async handle<K extends keyof ChatMessages>(
-    message: Message<ChatMessages, K>
-  ): Promise<void> {
-    switch (message.type) {
-      case 'SEND_MESSAGE': {
-        const { text } = message.payload as ChatMessages['SEND_MESSAGE']
-        
-        if (!text.trim()) return
-        
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          text: text.trim(),
-          author: this.state.currentUser,
-          timestamp: Date.now(),
-          type: 'user'
-        }
-        
-        this.setState('messages', [...this.state.messages, newMessage])
-        this.setState('lastActivity', Date.now())
-        this.setState('isTyping', false)
-        
-        // Auto-trigger bot response for demo
-        if (text.toLowerCase().includes('bot') || text.includes('?')) {
-          setTimeout(() => this.send('SIMULATE_BOT_RESPONSE', {}), 1000 + Math.random() * 2000)
-        }
-        break
-      }
+  sendMessage(text: string) {
+    if (!text.trim()) return
 
-      case 'SET_USER': {
-        const { username } = message.payload as ChatMessages['SET_USER']
-        const trimmedName = username.trim() || 'Guest'
-        
-        if (trimmedName !== this.state.currentUser) {
-          // Add system message about name change
-          const systemMessage: ChatMessage = {
-            id: Date.now().toString(),
-            text: `${this.state.currentUser} is now known as ${trimmedName}`,
-            author: 'System',
-            timestamp: Date.now(),
-            type: 'system'
-          }
-          
-          this.setState('messages', [...this.state.messages, systemMessage])
-          this.setState('currentUser', trimmedName)
-          
-          // Update online users
-          const newOnlineUsers = this.state.onlineUsers.map(user => 
-            user === this.state.currentUser ? trimmedName : user
-          )
-          this.setState('onlineUsers', newOnlineUsers)
-        }
-        break
-      }
-
-      case 'START_TYPING': {
-        this.setState('isTyping', true)
-        
-        // Clear existing timer
-        if (this.typingTimer) {
-          clearTimeout(this.typingTimer)
-        }
-        
-        // Auto-stop typing after 3 seconds
-        this.typingTimer = window.setTimeout(() => {
-          this.send('STOP_TYPING', {})
-        }, 3000)
-        break
-      }
-
-      case 'STOP_TYPING': {
-        this.setState('isTyping', false)
-        if (this.typingTimer) {
-          clearTimeout(this.typingTimer)
-          this.typingTimer = undefined
-        }
-        break
-      }
-
-      case 'USER_JOIN': {
-        const { username } = message.payload as ChatMessages['USER_JOIN']
-        
-        if (!this.state.onlineUsers.includes(username)) {
-          const joinMessage: ChatMessage = {
-            id: Date.now().toString(),
-            text: `${username} joined the chat`,
-            author: 'System',
-            timestamp: Date.now(),
-            type: 'system'
-          }
-          
-          this.setState('messages', [...this.state.messages, joinMessage])
-          this.setState('onlineUsers', [...this.state.onlineUsers, username])
-        }
-        break
-      }
-
-      case 'USER_LEAVE': {
-        const { username } = message.payload as ChatMessages['USER_LEAVE']
-        
-        const leaveMessage: ChatMessage = {
-          id: Date.now().toString(),
-          text: `${username} left the chat`,
-          author: 'System',
-          timestamp: Date.now(),
-          type: 'system'
-        }
-        
-        this.setState('messages', [...this.state.messages, leaveMessage])
-        this.setState('onlineUsers', this.state.onlineUsers.filter(user => user !== username))
-        break
-      }
-
-      case 'SIMULATE_BOT_RESPONSE': {
-        // Simulate typing first
-        this.setState('isTyping', true)
-        
-        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1500))
-        
-        const responses = [
-          "That's interesting! Tell me more.",
-          "I'm just a demo bot, but I think you're onto something! 🤖",
-          "Have you tried exploring the other demo features?",
-          "The message-driven architecture is pretty cool, right?",
-          "Check out how the strongly typed state proxy works!",
-          "SolidJS + Steward = ❤️",
-          "Try the counter demo too - it shows off the reactive updates!"
-        ]
-        
-        const botMessage: ChatMessage = {
-          id: Date.now().toString(),
-          text: responses[Math.floor(Math.random() * responses.length)],
-          author: 'DemoBot',
-          timestamp: Date.now(),
-          type: 'bot'
-        }
-        
-        this.setState('messages', [...this.state.messages, botMessage])
-        this.setState('isTyping', false)
-        break
-      }
-
-      case 'CLEAR_CHAT': {
-        const welcomeMessage: ChatMessage = {
-          id: Date.now().toString(),
-          text: 'Chat cleared! Welcome back! 👋',
-          author: 'System',
-          timestamp: Date.now(),
-          type: 'system'
-        }
-        
-        this.setState('messages', [welcomeMessage])
-        this.setState('lastActivity', Date.now())
-        break
-      }
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: text.trim(),
+      author: this.state.currentUser,
+      timestamp: Date.now(),
+      type: 'user'
     }
+
+    this.setState('messages', [...this.state.messages, newMessage])
+    this.setState('lastActivity', Date.now())
+    this.setState('isTyping', false)
+
+    // Auto-trigger bot response for demo
+    if (text.toLowerCase().includes('bot') || text.includes('?')) {
+      setTimeout(() => this.send('simulateBotResponse', []), 1000 + Math.random() * 2000)
+    }
+  }
+
+  setUser(username: string) {
+    const trimmedName = username.trim() || 'Guest'
+
+    if (trimmedName !== this.state.currentUser) {
+      // Add system message about name change
+      const systemMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: `${this.state.currentUser} is now known as ${trimmedName}`,
+        author: 'System',
+        timestamp: Date.now(),
+        type: 'system'
+      }
+
+      this.setState('messages', [...this.state.messages, systemMessage])
+      this.setState('currentUser', trimmedName)
+
+      // Update online users
+      const newOnlineUsers = this.state.onlineUsers.map(user =>
+        user === this.state.currentUser ? trimmedName : user
+      )
+      this.setState('onlineUsers', newOnlineUsers)
+    }
+  }
+
+  startTyping() {
+    this.setState('isTyping', true)
+
+    // Clear existing timer
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer)
+    }
+
+    // Auto-stop typing after 3 seconds
+    this.typingTimer = window.setTimeout(() => {
+      this.send('stopTyping', [])
+    }, 3000)
+  }
+
+  stopTyping() {
+    this.setState('isTyping', false)
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer)
+      this.typingTimer = undefined
+    }
+  }
+
+  userJoin(username: string) {
+    if (!this.state.onlineUsers.includes(username)) {
+      const joinMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: `${username} joined the chat`,
+        author: 'System',
+        timestamp: Date.now(),
+        type: 'system'
+      }
+
+      this.setState('messages', [...this.state.messages, joinMessage])
+      this.setState('onlineUsers', [...this.state.onlineUsers, username])
+    }
+  }
+
+  userLeave(username: string) {
+    const leaveMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: `${username} left the chat`,
+      author: 'System',
+      timestamp: Date.now(),
+      type: 'system'
+    }
+
+    this.setState('messages', [...this.state.messages, leaveMessage])
+    this.setState('onlineUsers', this.state.onlineUsers.filter(user => user !== username))
+  }
+
+  async simulateBotResponse() {
+    // Simulate typing first
+    this.setState('isTyping', true)
+
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1500))
+
+    const responses = [
+      "That's interesting! Tell me more.",
+      "I'm just a demo bot, but I think you're onto something! 🤖",
+      "Have you tried exploring the other demo features?",
+      "The message-driven architecture is pretty cool, right?",
+      "Check out how the strongly typed state proxy works!",
+      "SolidJS + Steward = ❤️",
+      "Try the counter demo too - it shows off the reactive updates!"
+    ]
+
+    const botMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: responses[Math.floor(Math.random() * responses.length)],
+      author: 'DemoBot',
+      timestamp: Date.now(),
+      type: 'bot'
+    }
+
+    this.setState('messages', [...this.state.messages, botMessage])
+    this.setState('isTyping', false)
+  }
+
+  clearChat() {
+    const welcomeMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: 'Chat cleared! Welcome back! 👋',
+      author: 'System',
+      timestamp: Date.now(),
+      type: 'system'
+    }
+
+    this.setState('messages', [welcomeMessage])
+    this.setState('lastActivity', Date.now())
   }
 
   // Computed properties using strongly typed state

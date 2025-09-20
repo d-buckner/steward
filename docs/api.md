@@ -52,42 +52,46 @@ class UserService extends Service<{ name: string; email: string }> {
 }
 ```
 
-### MessageService
+### Message-Driven Services
 
-Extended service class for message-driven architecture.
+Services automatically route messages to public methods based on method names. Actions are automatically derived from your method signatures - no manual interfaces needed!
 
 ```typescript
-class MessageService<State, Messages extends MessageDefinition> extends Service<State>
+class Service<State>
 ```
 
 #### Methods
 
-- `abstract handle<K extends keyof Messages>(message: Message<Messages, K>): Promise<void> | void` - Handle incoming messages
-- `send<K extends keyof Messages>(type: K, payload: Messages[K]): Promise<void>` - Send message
-- `request<ReqKey, ResKey>(requestType: ReqKey, payload: Messages[ReqKey], responseType: ResKey, timeout?: number): Promise<Messages[ResKey]>` - Request/response pattern
+- `send<K extends keyof Actions>(type: K, payload: Actions[K]): void` - Send message
+- `request<ReqKey, ResKey>(requestType: ReqKey, payload: Actions[ReqKey], responseType: ResKey, timeout?: number): Promise<Actions[ResKey]>` - Request/response pattern
 
 #### Example
 
 ```typescript
-interface AuthMessages {
-  LOGIN: { username: string; password: string }
-  LOGOUT: {}
-  LOGIN_SUCCESS: { user: User }
-  LOGIN_FAILED: { error: string }
-}
+// Just define your state and methods - actions are automatic!
+class AuthService extends Service<AuthState> {
+  async login(username: string, password: string) {
+    // Handle login
+    const user = await this.authenticate(username, password)
+    this.send('loginSuccess', [user])
+  }
 
-class AuthService extends MessageService<AuthState, AuthMessages> {
-  async handle(message: Message<AuthMessages>) {
-    switch (message.type) {
-      case 'LOGIN':
-        // Handle login
-        break
-      case 'LOGOUT':
-        // Handle logout
-        break
-    }
+  logout() {
+    // Handle logout
+    this.setState('user', null)
+  }
+
+  loginSuccess(user: User) {
+    this.setState('user', user)
+  }
+
+  loginFailed(error: string) {
+    this.setState('error', error)
   }
 }
+
+// Actions are automatically:
+// { login: [string, string], logout: [], loginSuccess: [User], loginFailed: [string] }
 ```
 
 ### ServiceContainer
@@ -115,30 +119,7 @@ container.register('users', () => new UserService(container.resolve('auth')))
 const authService = container.resolve('auth')
 ```
 
-## Decorators and Utilities
-
-### @withMessages
-
-Decorator for configuring message types and action creators.
-
-```typescript
-function withMessages<Messages extends MessageDefinition>(
-  messageTypes: (keyof Messages)[],
-  actionCreators?: ActionCreators<Messages>
-)
-```
-
-#### Example
-
-```typescript
-@withMessages(['ADD_TODO', 'TOGGLE_TODO'], {
-  ADD_TODO: (text: string, priority: number = 0) => ({ text, priority }),
-  TOGGLE_TODO: (id: string) => ({ id })
-})
-class TodoService extends MessageService<TodoState, TodoMessages> {
-  // Implementation
-}
-```
+## Utilities
 
 ### ServiceToken Namespace
 
@@ -168,18 +149,45 @@ interface Message<T extends MessageDefinition, K extends keyof T = keyof T> {
 }
 ```
 
-### MessageDefinition
-
-```typescript
-type MessageDefinition = Record<string, any>
-```
-
 ### ServiceActions
 
 ```typescript
-type ServiceActions<T extends MessageDefinition> = {
-  [K in keyof T as ToCamelCase<string & K>]: (...args: any[]) => Promise<void>
+type ServiceActions = {
+  [actionName: string]: unknown[]
 }
+```
+
+Defines action types where:
+- Action names should be camelCase (e.g., `addItem`, `deleteUser`)
+- Payloads must be arrays (e.g., `[text: string, priority: number]`)
+- Each action corresponds to a public method on the service
+
+### ExtractActions (Advanced)
+
+```typescript
+type ExtractActions<T> = {
+  [K in keyof T as T[K] extends (...args: any[]) => any
+    ? K extends string
+      ? K extends BaseServiceMethods
+        ? never
+        : K
+      : never
+    : never]: T[K] extends (...args: infer P) => any ? P : never
+}
+```
+
+Utility type for advanced scenarios where you need to explicitly extract action types from a service class. This is automatically used by the Service class, so you typically don't need to use it directly:
+
+```typescript
+class TodoService extends Service<TodoState> {
+  addItem(text: string) { /* ... */ }
+  toggleItem(id: string) { /* ... */ }
+  setFilter(filter: string) { /* ... */ }
+}
+
+// For advanced use cases, you can explicitly extract the action types:
+type TodoActions = ExtractActions<TodoService>
+// Result: { addItem: [string], toggleItem: [string], setFilter: [string] }
 ```
 
 ### Subscription

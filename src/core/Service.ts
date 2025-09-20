@@ -2,39 +2,42 @@ import { ServiceEventBus } from './ServiceEventBus'
 import { EventBus, EventHandler, EventSubscription } from '../types'
 import {
   Message,
-  MessageHandler,
   createMessage,
   generateMessageId
 } from './Messages'
-import { ServiceState, ServiceMessages } from './ServiceTypes'
+import { ServiceState, ServiceActions } from './ServiceTypes'
 
 /**
  * Message-driven service with reactive state management
  * All services in Steward should extend this class for pure message-passing architecture
+ *
+ * Actions are automatically derived from the service's public methods.
+ * Just define your state and methods - no manual action interfaces needed!
  */
-export abstract class Service<
+export class Service<
   TState extends ServiceState = ServiceState,
-  Messages extends ServiceMessages = ServiceMessages
-> implements EventBus, MessageHandler<Messages> {
+  Actions extends ServiceActions = ServiceActions,
+> implements EventBus {
   private eventBus = new ServiceEventBus<TState>()
   private _state: TState
-  private messageHistory: Message<Messages>[] = []
+  private messageHistory: Message<Actions>[] = []
   private pendingRequests = new Map<string, {
     resolve: (value: any) => void
     reject: (error: Error) => void
-    responseType: keyof Messages
+    responseType: keyof Actions
     timeout: NodeJS.Timeout
   }>()
-  
+  private messageRouter: ((message: Message<any>) => Promise<void> | void) | null = null
+
   /**
    * Strongly typed reactive state proxy
    * Access state properties directly: service.state.count
    */
   public readonly state: TState
-  
+
   constructor(initialState: TState) {
     this._state = { ...initialState }
-    
+
     // Create reactive state proxy
     this.state = new Proxy(this._state, {
       get: (target, prop: string | symbol) => {
@@ -47,13 +50,35 @@ export abstract class Service<
         throw new Error('Cannot directly modify service state. Use setState() or updateState() instead.')
       }
     }) as TState
-    
+
     // Emit initial state for all keys
     Object.entries(initialState).forEach(([key, value]) => {
       this.eventBus.emit(key as keyof TState, value as TState[keyof TState])
     })
+
+    // Initialize message router with automatic method detection
+    this.messageRouter = this.createAutoMessageRouter()
   }
-  
+
+  /**
+   * Create an automatic message router that maps message types to public methods
+   */
+  private createAutoMessageRouter(): (message: Message<any>) => Promise<void> | void {
+    return (message: Message<any>) => {
+      const methodName = message.type as string
+      const method = (this as any)[methodName]
+
+      if (typeof method === 'function') {
+        // Apply the message payload as arguments
+        return method.apply(this, message.payload as any[])
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(`[${this.constructor.name}] No method found for message type: ${String(message.type)}`)
+        }
+      }
+    }
+  }
+
   // EventBus interface implementation
   on<T = any>(event: string, handler: EventHandler<T>): EventSubscription {
     return this.eventBus.on(event as keyof TState, handler)
@@ -109,21 +134,30 @@ export abstract class Service<
     })
   }
 
-  // Message handling interface - implemented by concrete services
-  abstract handle<K extends keyof Messages>(
-    message: Message<Messages, K>
-  ): Promise<void> | void
+  // Message handling interface - uses decorator-based routing or can be overridden
+  private handle<K extends keyof Actions>(
+    message: Message<Actions, K>
+  ): Promise<void> | void {
+    if (this.messageRouter) {
+      return this.messageRouter(message as Message<Actions>)
+    }
+
+    // This should not happen anymore with automatic routing
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(`No message router found for service ${this.constructor.name}. This should not happen.`)
+    }
+  }
 
   // Send message to this service
-  send<K extends keyof Messages>(
+  send<K extends keyof Actions>(
     type: K,
-    payload: Messages[K],
+    payload: Actions[K],
     correlationId?: string
   ): void {
-    const message = createMessage<Messages, K>(type, payload, correlationId)
+    const message = createMessage<Actions, K>(type, payload, correlationId)
 
     // Store in history for debugging
-    this.messageHistory.push(message as Message<Messages>)
+    this.messageHistory.push(message as Message<Actions>)
 
     // Log in development
     if (process.env.NODE_ENV === 'development') {
@@ -146,17 +180,17 @@ export abstract class Service<
 
   // Request/response pattern
   async request<
-    ReqKey extends keyof Messages,
-    ResKey extends keyof Messages
+    ReqKey extends keyof Actions,
+    ResKey extends keyof Actions
   >(
     requestType: ReqKey,
-    payload: Messages[ReqKey],
+    payload: Actions[ReqKey],
     responseType: ResKey,
     timeout = 5000
-  ): Promise<Messages[ResKey]> {
+  ): Promise<Actions[ResKey]> {
     const correlationId = generateMessageId()
     
-    return new Promise<Messages[ResKey]>((resolve, reject) => {
+    return new Promise<Actions[ResKey]>((resolve, reject) => {
       // Set up response listener
       const timeoutHandle = setTimeout(() => {
         this.pendingRequests.delete(correlationId)
@@ -171,14 +205,18 @@ export abstract class Service<
       })
       
       // Send the request
-      this.send(requestType, payload, correlationId).catch(reject)
+      try {
+        this.send(requestType, payload, correlationId)
+      } catch (error) {
+        reject(error)
+      }
     })
   }
 
   // Handle response messages for pending requests
-  protected resolveRequest<K extends keyof Messages>(
+  protected resolveRequest<K extends keyof Actions>(
     type: K,
-    payload: Messages[K],
+    payload: Actions[K],
     correlationId: string
   ): void {
     const pending = this.pendingRequests.get(correlationId)
@@ -190,7 +228,7 @@ export abstract class Service<
   }
 
   // Get message history for debugging
-  getMessageHistory(): Message<Messages>[] {
+  getMessageHistory(): Message<Actions>[] {
     return [...this.messageHistory]
   }
 

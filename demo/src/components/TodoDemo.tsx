@@ -3,11 +3,7 @@ import { createSignal, createMemo, For, Show } from 'solid-js'
 import { TodoToken } from '../services'
 
 export function TodoDemo() {
-  const items = createServiceState(TodoToken, 'items')
-  const filter = createServiceState(TodoToken, 'filter')
-  const loading = createServiceState(TodoToken, 'loading')
-  const searchQuery = createServiceState(TodoToken, 'searchQuery')
-  
+  const state = createServiceState(TodoToken)
   const actions = createServiceActions(TodoToken)
   
   const [newTodoText, setNewTodoText] = createSignal('')
@@ -17,9 +13,9 @@ export function TodoDemo() {
   
   // Computed values
   const filteredItems = createMemo(() => {
-    const allItems = items() || []
-    const currentFilter = filter()
-    const query = searchQuery()?.toLowerCase() || ''
+    const allItems = state.items || []
+    const currentFilter = state.filter
+    const query = state.searchQuery?.toLowerCase() || ''
     
     let filtered = allItems
     
@@ -47,7 +43,7 @@ export function TodoDemo() {
   })
   
   const stats = createMemo(() => {
-    const allItems = items() || []
+    const allItems = state.items || []
     return {
       total: allItems.length,
       completed: allItems.filter(item => item.completed).length,
@@ -102,8 +98,8 @@ export function TodoDemo() {
     <div class="demo-section">
       <h2>📝 Todo Demo</h2>
       <p class="demo-description">
-        Demonstrates message-driven architecture with <code>@withMessages</code> decorator,
-        expressive action APIs, and complex state management.
+        Demonstrates auto-derived actions, proxy-based state access,
+        and complex state management patterns.
       </p>
       
       <div class="todo-controls">
@@ -136,9 +132,9 @@ export function TodoDemo() {
           <button 
             onClick={() => actions.loadSampleData()} 
             class="load-btn"
-            disabled={loading()}
+            disabled={state.loading}
           >
-            {loading() ? '⏳ Loading...' : '📦 Load Sample Data'}
+            {state.loading ? '⏳ Loading...' : '📦 Load Sample Data'}
           </button>
           
           <button 
@@ -155,7 +151,7 @@ export function TodoDemo() {
         <input
           type="text"
           placeholder="Search todos..."
-          value={searchQuery() || ''}
+          value={state.searchQuery || ''}
           onInput={(e) => actions.setSearch(e.target.value)}
           class="search-input"
         />
@@ -169,7 +165,7 @@ export function TodoDemo() {
             {(filterOption) => (
               <button
                 class="filter-btn"
-                classList={{ active: filter() === filterOption.key }}
+                classList={{ active: state.filter === filterOption.key }}
                 onClick={() => actions.setFilter(filterOption.key as any)}
               >
                 {filterOption.label}
@@ -191,16 +187,16 @@ export function TodoDemo() {
       </div>
       
       <div class="todo-list">
-        <Show when={loading()}>
+        <Show when={state.loading}>
           <div class="loading-indicator">
             <div class="spinner"></div>
             <span>Loading sample data...</span>
           </div>
         </Show>
         
-        <Show when={!loading() && filteredItems().length === 0}>
+        <Show when={!state.loading && filteredItems().length === 0}>
           <div class="empty-state">
-            {(items()?.length || 0) === 0 
+            {(state.items?.length || 0) === 0 
               ? "No todos yet. Add one above!" 
               : "No todos match your current filter."}
           </div>

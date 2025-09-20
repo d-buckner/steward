@@ -1,140 +1,132 @@
-import { Service, TypedServiceToken, ServiceFromToken } from '@d-buckner/steward'
+import { TypedServiceToken, ExtractActions } from '@d-buckner/steward'
 import { useServiceContainer } from './ServiceProvider'
 
-// Convert snake_case/UPPER_CASE message types to camelCase method names
-function toCamelCase(str: string): string {
-  return str.toLowerCase().replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
-}
-
-// Type for existing service methods  
-type ServiceActions<T> = {
-  [K in keyof T]: T[K] extends (...args: any[]) => any ? T[K] : never
-}
-
-// Specific action types for services with @withMessages decorator
-type TodoServiceActions = {
-  addItem: (text: string, priority?: 'low' | 'medium' | 'high', dueDate?: Date) => Promise<void>
-  toggleItem: (id: string) => Promise<void>
-  deleteItem: (id: string) => Promise<void>
-  editItem: (id: string, text: string) => Promise<void>
-  setFilter: (filter: 'all' | 'active' | 'completed') => Promise<void>
-  setSearch: (query: string) => Promise<void>
-  clearCompleted: () => Promise<void>
-  loadSampleData: () => Promise<void>
-}
-
-type ChatServiceActions = {
-  sendMessage: (text: string) => Promise<void>
-  setUser: (username: string) => Promise<void>
-  startTyping: () => Promise<void>
-  stopTyping: () => Promise<void>
-  userJoin: (username: string) => Promise<void>
-  userLeave: (username: string) => Promise<void>
-  simulateBotResponse: () => Promise<void>
-  clearChat: () => Promise<void>
-}
-
-type CounterServiceActions = {
-  increment: () => Promise<void>
-  decrement: () => Promise<void>
-  reset: () => Promise<void>
-  setStep: (step: number) => Promise<void>
-  toggle: () => Promise<void>
-  undo: () => Promise<void>
-}
-
-// For now, return a union type that includes all possible action methods
-// This provides good IntelliSense while we work on a better type mapping solution
-type ActionsFromToken<T> = T extends TypedServiceToken
-  ? ServiceFromToken<T> extends Service
-    ? TodoServiceActions & ChatServiceActions & CounterServiceActions & Omit<ServiceActions<ServiceFromToken<T>>, keyof Service | 'constructor'>
-    : never
+// Properly typed action creators based on service methods
+type ActionsFromToken<T> = T extends TypedServiceToken<infer S>
+  ? {
+      [K in keyof ExtractActions<S>]: (...args: ExtractActions<S>[K]) => Promise<void>
+    }
   : never
 
-export function createServiceActions<T extends TypedServiceToken>(
+export function createServiceActions<T extends TypedServiceToken<any>>(
   serviceToken: T
 ): ActionsFromToken<T> {
+  console.log(`[createServiceActions] === STARTING CREATESERVICEACTIONS ===`)
   const container = useServiceContainer()
+  console.log(`[createServiceActions] Container from hook:`, container)
+  console.log(`[createServiceActions] Container constructor:`, container.constructor.name)
+  console.log(`[createServiceActions] Token:`, serviceToken)
+  console.log(`[createServiceActions] Token name:`, serviceToken.name)
+  console.log(`[createServiceActions] Token symbol:`, serviceToken.symbol)
+
   const service = container.resolve(serviceToken)
-  
-  const actions = {} as ActionsFromToken<T>
-  
-  // Check if service has decorator metadata
-  const messageTypes = (service as any).__messageTypes
-  const actionCreators = (service as any).__actionCreators
-  
-  if (messageTypes && Array.isArray(messageTypes)) {
-    // Use decorator metadata to create actions
-    messageTypes.forEach((type: string) => {
-      const methodName = toCamelCase(type)
-      const customAction = actionCreators?.[type]
-      
-      if (customAction) {
-        // Use custom parameter mapping
-        (actions as any)[methodName] = async (...args: any[]) => {
-          const payload = customAction(...args)
-          
-          // Early return for production - no logging overhead
-          if (!import.meta.env.DEV) {
-            return (service as any).send(type, payload)
-          }
-          
-          // Development logging
-          const serviceName = (service.constructor as any).name || 'UnknownService'
-          console.group(`🎯 ${serviceName}.${methodName}(${args.map(a => JSON.stringify(a)).join(', ')})`)
-          console.log('📨 Payload:', payload)
-          console.log('📊 Before:', service.getState())
-          const startTime = performance.now()
-          
-          const result = await (service as any).send(type, payload)
-          
-          const endTime = performance.now()
-          console.log('📊 After:', service.getState())
-          console.log(`⏱️ Duration: ${(endTime - startTime).toFixed(2)}ms`)
-          console.groupEnd()
-          
-          return result
-        }
-        return
-      }
-      
-      // Default behavior: single param or empty
-      (actions as any)[methodName] = async (payload?: any) => {
-        // Early return for production - no logging overhead
-        if (!import.meta.env.DEV) {
-          return (service as any).send(type, payload || {})
-        }
-        
-        // Development logging
-        const serviceName = (service.constructor as any).name || 'UnknownService'
-        console.group(`🎯 ${serviceName}.${methodName}(${JSON.stringify(payload)})`)
-        console.log('📊 Before:', service.getState())
-        const startTime = performance.now()
-        
-        const result = await (service as any).send(type, payload || {})
-        
-        const endTime = performance.now()
-        console.log('📊 After:', service.getState())
-        console.log(`⏱️ Duration: ${(endTime - startTime).toFixed(2)}ms`)
-        console.groupEnd()
-        
-        return result
-      }
+  console.log(`[createServiceActions] Resolved service:`, service)
+
+  // List of Service base methods that should not be exposed as actions
+  // This mirrors the ExtractActions type logic but is more reliable at runtime
+  const baseServiceMethods = new Set([
+    'send', 'request', 'on', 'off', 'once', 'removeAllListeners',
+    'hasListeners', 'getListenerCount', 'getState', 'clear',
+    'getMessageHistory', 'clearMessageHistory', 'replayMessages', 'resolveRequest',
+    'setState', 'setStates', 'updateState', 'handle'
+  ])
+
+  // Check if this is a WorkerProxy (worker service)
+  console.log(`[createServiceActions] Service constructor name:`, service.constructor.name)
+  console.log(`[createServiceActions] Service instance:`, service)
+  console.log(`[createServiceActions] Service has state property:`, 'state' in service)
+  console.log(`[createServiceActions] Service has send method:`, typeof (service as any).send)
+  console.log(`[createServiceActions] Service prototype:`, Object.getPrototypeOf(service))
+  console.log(`[createServiceActions] Service prototype names:`, Object.getOwnPropertyNames(Object.getPrototypeOf(service)))
+
+  let availableMethods: string[] = []
+
+  // Always try to get the service constructor first, regardless of service type
+  const serviceConstructor = container.getServiceConstructor(serviceToken)
+  console.log(`[createServiceActions] Service constructor from container:`, serviceConstructor)
+
+  if (serviceConstructor) {
+    console.log(`[createServiceActions] Using service constructor approach`)
+    // Get methods from the service class prototype
+    const prototype = serviceConstructor.prototype
+    console.log(`[createServiceActions] Service prototype:`, prototype)
+    console.log(`[createServiceActions] All prototype properties:`, Object.getOwnPropertyNames(prototype))
+
+    const allMethods = Object.getOwnPropertyNames(prototype)
+    console.log(`[createServiceActions] All methods before filtering:`, allMethods)
+
+    availableMethods = allMethods.filter(name => {
+      const descriptor = Object.getOwnPropertyDescriptor(prototype, name)
+      const isFunction = descriptor && typeof descriptor.value === 'function'
+      const isConstructor = name === 'constructor'
+      const isBaseMethod = baseServiceMethods.has(name)
+
+      console.log(`[createServiceActions] Method ${name}:`, {
+        isFunction,
+        isConstructor,
+        isBaseMethod,
+        include: isFunction && !isConstructor && !isBaseMethod
+      })
+
+      return isFunction && !isConstructor && !isBaseMethod
     })
+
+    console.log(`[createServiceActions] Filtered available methods:`, availableMethods)
   } else {
-    // Service does not use @withMessages decorator
-    // In pure message-passing architecture, all services must use messages
-    if (import.meta.env.DEV) {
-      console.warn(
-        `⚠️ Service ${service.constructor.name} does not use @withMessages decorator. ` +
-        `For pure message-passing architecture, all services should extend MessageService ` +
-        `and use the @withMessages decorator.`
-      )
-    }
-    
-    // Return empty actions object - no fallback to direct methods
-    // This enforces the message-passing discipline
+    console.log(`[createServiceActions] No service constructor found, using instance approach`)
+    // Fallback: For regular services, get methods from the instance
+    availableMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(service))
+      .filter(name => {
+        const method = (service as any)[name]
+        return typeof method === 'function' &&
+               name !== 'constructor' &&
+               !baseServiceMethods.has(name)
+      })
   }
-  
-  return actions
+
+  // Detect if this is a worker proxy for the send method
+  const isWorkerProxy = typeof (service as any).send === 'function' &&
+                        'state' in service &&
+                        service.constructor.name !== serviceConstructor?.name
+
+  console.log(`[createServiceActions] Service type: ${isWorkerProxy ? 'WorkerProxy' : 'Regular'}`)
+  console.log(`[createServiceActions] Available methods:`, availableMethods)
+  console.log(`[createServiceActions] Available methods length:`, availableMethods.length)
+
+  // Use a proxy to intercept method calls and route them as messages
+  const proxy = new Proxy({} as ActionsFromToken<T>, {
+    get(target, prop: string | symbol) {
+      if (typeof prop === 'string' && availableMethods.includes(prop)) {
+        // Return a function that sends the message to the service
+        return async (...args: any[]) => {
+          return (service as any).send(prop, args)
+        }
+      }
+      return target[prop as keyof ActionsFromToken<T>]
+    },
+    has(_target, prop: string | symbol) {
+      return typeof prop === 'string' && availableMethods.includes(prop)
+    },
+    ownKeys(_target) {
+      return availableMethods
+    },
+    getOwnPropertyDescriptor(_target, prop: string | symbol) {
+      if (typeof prop === 'string' && availableMethods.includes(prop)) {
+        return {
+          enumerable: true,
+          configurable: true,
+          value: undefined
+        }
+      }
+      return undefined
+    }
+  })
+
+  console.log(`[createServiceActions] === CREATED PROXY ===`)
+  console.log(`[createServiceActions] Proxy:`, proxy)
+  console.log(`[createServiceActions] Proxy keys:`, Object.keys(proxy))
+  console.log(`[createServiceActions] Proxy ownKeys:`, Object.getOwnPropertyNames(proxy))
+  console.log(`[createServiceActions] === RETURNING PROXY ===`)
+
+  return proxy
 }

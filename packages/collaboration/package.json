@@ -23,7 +23,7 @@
   "author": "Daniel Buckner",
   "license": "MIT",
   "peerDependencies": {
-    "@steward/core": "workspace:*"
+    "@steward/core": "file:../../"
   },
   "dependencies": {
     "@automerge/automerge": "^2.2.8"

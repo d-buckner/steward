@@ -4,12 +4,15 @@
  */
 
 // Re-export core Steward functionality that works with collaboration
-export { Service, ServiceEventBus, ServiceContainer } from '@steward/core'
-export type { ServiceState, ServiceMessages } from '@steward/core'
+export { Service, ServiceEventBus, ServiceContainer } from '@d-buckner/steward'
+export type { ServiceState, ServiceActions } from '@d-buckner/steward'
 
 // Export collaboration features
 export { CRDTService } from './crdt/CRDTService'
 export type { ChangeFunction, CRDTState, CRDTDocument } from './crdt/types'
+
+// Import types for function
+import { CRDTService } from './crdt/CRDTService'
 
 /**
  * Helper function to create a collaborative service
@@ -17,8 +20,8 @@ export type { ChangeFunction, CRDTState, CRDTDocument } from './crdt/types'
  */
 export function createCollaborativeService<TState extends Record<string, any>>(
   initialState: TState
-) {
-  return class extends CRDTService<TState> {
+): new () => CRDTService<TState> {
+  return class CollaborativeService extends CRDTService<TState> {
     constructor() {
       super(initialState)
     }

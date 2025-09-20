@@ -59,74 +59,105 @@ describe('useServiceState', () => {
     <ServiceProvider container={container}>{children}</ServiceProvider>
   )
 
-  it('should return current value for specific key', () => {
-    const { result } = renderHook(() => useServiceState(CounterToken, 'count'), { wrapper })
-    
-    expect(result.current).toBe(0)
+  it('should return current state values', () => {
+    const { result } = renderHook(() => useServiceState(CounterToken), { wrapper })
+
+    expect(result.current.count).toBe(0)
+    expect(result.current.name).toBe('counter')
+    expect(result.current.isActive).toBe(false)
   })
 
   it('should update when service state changes', async () => {
-    const { result } = renderHook(() => useServiceState(CounterToken, 'count'), { wrapper })
-    
-    expect(result.current).toBe(0)
-    
+    const { result } = renderHook(() => useServiceState(CounterToken), { wrapper })
+
+    expect(result.current.count).toBe(0)
+
     await act(async () => {
       await service.increment()
     })
-    
-    expect(result.current).toBe(1)
+
+    expect(result.current.count).toBe(1)
   })
 
   it('should work with string values', async () => {
-    const { result } = renderHook(() => useServiceState(CounterToken, 'name'), { wrapper })
-    
-    expect(result.current).toBe('counter')
-    
+    const { result } = renderHook(() => useServiceState(CounterToken), { wrapper })
+
+    expect(result.current.name).toBe('counter')
+
     await act(async () => {
       await service.setName('updated')
     })
-    
-    expect(result.current).toBe('updated')
+
+    expect(result.current.name).toBe('updated')
   })
 
   it('should work with boolean values', async () => {
-    const { result } = renderHook(() => useServiceState(CounterToken, 'isActive'), { wrapper })
-    
-    expect(result.current).toBe(false)
-    
+    const { result } = renderHook(() => useServiceState(CounterToken), { wrapper })
+
+    expect(result.current.isActive).toBe(false)
+
     await act(async () => {
       await service.toggle()
     })
-    
-    expect(result.current).toBe(true)
+
+    expect(result.current.isActive).toBe(true)
   })
 
   it('should unsubscribe on unmount', async () => {
-    const { result, unmount } = renderHook(() => useServiceState(CounterToken, 'count'), { wrapper })
-    
-    expect(result.current).toBe(0)
-    
+    const { result, unmount } = renderHook(() => useServiceState(CounterToken), { wrapper })
+
+    expect(result.current.count).toBe(0)
+
     unmount()
-    
+
     // After unmount, changes should not cause re-renders
     await service.increment()
-    
+
     // We can't easily test that no re-render occurred, but we can verify
     // the service state changed without errors
     expect(service.state.count).toBe(1)
   })
 
   it('should handle rapid state changes', async () => {
-    const { result } = renderHook(() => useServiceState(CounterToken, 'count'), { wrapper })
-    
-    expect(result.current).toBe(0)
-    
+    const { result } = renderHook(() => useServiceState(CounterToken), { wrapper })
+
+    expect(result.current.count).toBe(0)
+
     await act(async () => {
       await service.increment()
       await service.increment()
       await service.increment()
     })
-    
-    expect(result.current).toBe(3)
+
+    expect(result.current.count).toBe(3)
+  })
+
+  it('should support destructuring assignment', () => {
+    const { result } = renderHook(() => {
+      const { count, name, isActive } = useServiceState(CounterToken)
+      return { count, name, isActive }
+    }, { wrapper })
+
+    expect(result.current.count).toBe(0)
+    expect(result.current.name).toBe('counter')
+    expect(result.current.isActive).toBe(false)
+  })
+
+  it('should update destructured values when state changes', async () => {
+    const { result } = renderHook(() => {
+      const { count, name } = useServiceState(CounterToken)
+      return { count, name }
+    }, { wrapper })
+
+    expect(result.current.count).toBe(0)
+    expect(result.current.name).toBe('counter')
+
+    await act(async () => {
+      await service.increment()
+      await service.setName('updated')
+    })
+
+    expect(result.current.count).toBe(1)
+    expect(result.current.name).toBe('updated')
   })
 })

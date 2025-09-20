@@ -3,8 +3,6 @@
  * These base types ensure all services follow consistent patterns
  */
 
-import { MessageDefinition } from './Messages'
-
 /**
  * Base type for all service state objects
  * Services can use this as a constraint for their state
@@ -12,7 +10,12 @@ import { MessageDefinition } from './Messages'
 export type ServiceState = Record<string, any>
 
 /**
- * Base type for all service message definitions
- * Services can use this as a constraint for their messages
+ * Re-export ServiceActions from Messages.ts for convenience
+ * Enforces camelCase action names: unknown[] pattern
  */
-export type ServiceMessages = MessageDefinition
+export type { ServiceActions } from './Messages'
+
+/**
+ * Re-export ExtractActions from TypeExtraction to avoid circular imports
+ */
+export type { ExtractActions } from './TypeExtraction'

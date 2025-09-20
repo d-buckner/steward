@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render } from '@solidjs/testing-library'
-import { MessageService, withMessages, Message, ServiceContainer, createServiceToken } from '@d-buckner/steward'
+import { Service, ServiceContainer, createServiceToken } from '@d-buckner/steward'
 import { createServiceActions } from './createServiceActions'
 import { ServiceProvider } from './ServiceProvider'
 
@@ -10,28 +10,7 @@ interface TodoState {
   loading: boolean
 }
 
-interface TodoMessages {
-  ADD_ITEM: { text: string }
-  REMOVE_ITEM: { index: number }
-  SET_FILTER: { filter: 'all' | 'completed' | 'active' }
-  CLEAR_ALL: {}
-  LOAD_ITEMS: {}
-}
-
-@withMessages<TodoMessages>([
-  'ADD_ITEM',
-  'REMOVE_ITEM',
-  'SET_FILTER',
-  'CLEAR_ALL',
-  'LOAD_ITEMS'
-], {
-  ADD_ITEM: (text: string) => ({ text }),
-  REMOVE_ITEM: (index: number) => ({ index }),
-  SET_FILTER: (filter: 'all' | 'completed' | 'active') => ({ filter }),
-  CLEAR_ALL: () => ({}),
-  LOAD_ITEMS: () => ({})
-})
-class TodoService extends MessageService<TodoState, TodoMessages> {
+class TodoService extends Service<TodoState> {
   constructor() {
     super({
       items: [],
@@ -40,44 +19,30 @@ class TodoService extends MessageService<TodoState, TodoMessages> {
     })
   }
 
-  async handle<K extends keyof TodoMessages>(
-    message: Message<TodoMessages, K>
-  ): Promise<void> {
-    switch (message.type) {
-      case 'ADD_ITEM': {
-        const { text } = message.payload as TodoMessages['ADD_ITEM']
-        const current = this.state.items || []
-        this.setState('items', [...current, text])
-        break
-      }
+  addItem(text: string) {
+    const current = this.state.items || []
+    this.setState('items', [...current, text])
+  }
 
-      case 'REMOVE_ITEM': {
-        const { index } = message.payload as TodoMessages['REMOVE_ITEM']
-        const current = this.state.items || []
-        this.setState('items', current.filter((_: string, i: number) => i !== index))
-        break
-      }
+  removeItem(index: number) {
+    const current = this.state.items || []
+    this.setState('items', current.filter((_: string, i: number) => i !== index))
+  }
 
-      case 'SET_FILTER': {
-        const { filter } = message.payload as TodoMessages['SET_FILTER']
-        this.setState('filter', filter)
-        break
-      }
+  setFilter(filter: 'all' | 'completed' | 'active') {
+    this.setState('filter', filter)
+  }
 
-      case 'CLEAR_ALL': {
-        this.setState('items', [])
-        break
-      }
+  clearAll() {
+    this.setState('items', [])
+  }
 
-      case 'LOAD_ITEMS': {
-        this.setState('loading', true)
-        // Simulate async operation
-        await new Promise(resolve => setTimeout(resolve, 10))
-        this.setState('items', ['Loaded item 1', 'Loaded item 2'])
-        this.setState('loading', false)
-        break
-      }
-    }
+  async loadItems() {
+    this.setState('loading', true)
+    // Simulate async operation
+    await new Promise(resolve => setTimeout(resolve, 10))
+    this.setState('items', ['Loaded item 1', 'Loaded item 2'])
+    this.setState('loading', false)
   }
 }
 
@@ -95,13 +60,8 @@ describe('createServiceActions', () => {
   it('should return all service methods as actions', () => {
     function TestComponent() {
       const actions = createServiceActions(TodoToken)
-      
-      expect(actions).toHaveProperty('addItem')
-      expect(actions).toHaveProperty('removeItem')
-      expect(actions).toHaveProperty('setFilter')
-      expect(actions).toHaveProperty('clearAll')
-      expect(actions).toHaveProperty('loadItems')
-      
+
+      // Test that the proxy provides the expected methods as functions
       expect(typeof actions.addItem).toBe('function')
       expect(typeof actions.removeItem).toBe('function')
       expect(typeof actions.setFilter).toBe('function')

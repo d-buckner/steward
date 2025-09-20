@@ -1,4 +1,4 @@
-import { Service, withMessages, withWorker, Message, createServiceToken, ServiceState, ServiceMessages } from '@d-buckner/steward'
+import { Service, withWorker, createServiceToken, ServiceState } from '@d-buckner/steward'
 
 interface DataProcessingState extends ServiceState {
   isProcessing: boolean
@@ -9,26 +9,13 @@ interface DataProcessingState extends ServiceState {
   lastProcessedAt: number
 }
 
-interface DataProcessingMessages extends ServiceMessages {
-  START_PROCESSING: { items: number[], operation: 'sum' | 'fibonacci' | 'prime_count' }
-  CANCEL_PROCESSING: {}
-  RESET: {}
-}
-
 /**
  * CPU-intensive data processing service that runs in a Web Worker
  * Demonstrates seamless worker integration with Steward services
  */
-@withWorker({ name: 'DataProcessor' })
-@withMessages<DataProcessingMessages>([
-  'START_PROCESSING', 'CANCEL_PROCESSING', 'RESET'
-], {
-  START_PROCESSING: (items: number[], operation: 'sum' | 'fibonacci' | 'prime_count') => ({ items, operation }),
-  CANCEL_PROCESSING: () => ({}),
-  RESET: () => ({})
-})
-export class DataProcessingService extends Service<DataProcessingState, DataProcessingMessages> {
-  private cancelProcessing = false
+@withWorker('DataProcessor')
+export class DataProcessingService extends Service<DataProcessingState> {
+  private shouldCancel = false
 
   constructor() {
     super({
@@ -41,41 +28,12 @@ export class DataProcessingService extends Service<DataProcessingState, DataProc
     })
   }
 
-  async handle<K extends keyof DataProcessingMessages>(message: Message<DataProcessingMessages, K>): Promise<void> {
-    switch (message.type) {
-      case 'START_PROCESSING': {
-        const { items, operation } = message.payload as DataProcessingMessages['START_PROCESSING']
-        await this.startProcessing(items, operation)
-        break
-      }
-
-      case 'CANCEL_PROCESSING': {
-        this.cancelProcessing = true
-        this.setState('isProcessing', false)
-        break
-      }
-
-      case 'RESET': {
-        this.cancelProcessing = false
-        this.setStates({
-          isProcessing: false,
-          progress: 0,
-          result: null,
-          processedItems: 0,
-          totalItems: 0,
-          lastProcessedAt: 0
-        })
-        break
-      }
-    }
-  }
-
-  private async startProcessing(items: number[], operation: 'sum' | 'fibonacci' | 'prime_count'): Promise<void> {
+  async startProcessing(items: number[], operation: 'sum' | 'fibonacci' | 'prime_count'): Promise<void> {
     if (this.state.isProcessing) {
       return // Already processing
     }
 
-    this.cancelProcessing = false
+    this.shouldCancel = false
     this.setStates({
       isProcessing: true,
       progress: 0,
@@ -91,22 +49,22 @@ export class DataProcessingService extends Service<DataProcessingState, DataProc
     if (items.length > 1000000) progressUpdates = 200 // More updates for large datasets
     if (items.length > 10000000) progressUpdates = 500 // Even more for very large datasets
     if (items.length > 100000000) progressUpdates = 1000 // Maximum updates for extreme datasets
-    
+
     // Adjust for operation complexity
     if (operation === 'prime_count' && items.length > 500000) {
       progressUpdates = Math.min(progressUpdates * 2, 1000)
     }
-    
+
     const batchSize = Math.max(1, Math.floor(items.length / progressUpdates))
 
     try {
       for (let i = 0; i < items.length; i++) {
-        if (this.cancelProcessing) {
+        if (this.shouldCancel) {
           return
         }
 
         const item = items[i]
-        
+
         // Perform the requested operation (CPU intensive)
         switch (operation) {
           case 'sum':
@@ -149,6 +107,23 @@ export class DataProcessingService extends Service<DataProcessingState, DataProc
         result: null
       })
     }
+  }
+
+  cancelProcessing() {
+    this.shouldCancel = true
+    this.setState('isProcessing', false)
+  }
+
+  reset() {
+    this.shouldCancel = false
+    this.setStates({
+      isProcessing: false,
+      progress: 0,
+      result: null,
+      processedItems: 0,
+      totalItems: 0,
+      lastProcessedAt: 0
+    })
   }
 
   private fibonacci(n: number): number {

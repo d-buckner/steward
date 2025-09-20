@@ -2,27 +2,40 @@ import { TypedServiceToken, StateFromToken } from '../core/ServiceTokens'
 import { ServiceContainer } from '../core/ServiceContainer'
 import { EventSubscription } from '../types'
 
+// Import the same ExtractActions type used by UI packages
+import { ExtractActions } from '../core/TypeExtraction'
+
 /**
  * Headless client for interacting with services outside of UI components
- * Provides the same functionality as UI hooks but for non-reactive contexts
+ * Provides the exact same API as UI hooks but for non-reactive contexts
  */
 export class ServiceClient<T extends TypedServiceToken> {
   private service: any
   private subscriptions = new Set<EventSubscription>()
-  
+
   /**
-   * Strongly typed reactive state proxy
+   * Strongly typed state proxy with destructuring support
    * Access state properties directly: client.state.count
+   * Or destructure: const { count, name } = client.state
    */
   public readonly state: StateFromToken<T>
+
+  /**
+   * Strongly typed action proxy
+   * Access actions directly: client.actions.increment()
+   * Or destructure: const { increment, decrement } = client.actions
+   */
+  public readonly actions: {
+    [K in keyof ExtractActions<T>]: (...args: ExtractActions<T>[K]) => Promise<void>
+  }
 
   constructor(
     container: ServiceContainer,
     serviceToken: T
   ) {
     this.service = container.resolve(serviceToken)
-    
-    // Create strongly typed state proxy that mirrors the service state
+
+    // Create state proxy with destructuring support (same as UI packages)
     this.state = new Proxy({} as StateFromToken<T>, {
       get: (target, prop: string | symbol) => {
         if (typeof prop === 'string') {
@@ -30,11 +43,96 @@ export class ServiceClient<T extends TypedServiceToken> {
         }
         return target[prop as keyof StateFromToken<T>]
       },
+
       set: () => {
         throw new Error('Cannot directly modify service state from client. Use actions instead.')
+      },
+
+      // Support for Object.keys(), Object.entries(), etc. and destructuring
+      ownKeys: () => {
+        return Object.keys(this.service.getState())
+      },
+
+      getOwnPropertyDescriptor: (_, prop) => {
+        if (typeof prop === 'string' && this.service.getState().hasOwnProperty(prop)) {
+          return {
+            enumerable: true,
+            configurable: true,
+            value: this.service.state[prop]
+          }
+        }
+        return undefined
+      },
+
+      has: (_, prop) => {
+        return typeof prop === 'string' && this.service.getState().hasOwnProperty(prop)
+      }
+    })
+
+    // Create actions proxy (same approach as UI packages)
+    this.actions = this.createActionsProxy()
+  }
+
+  /**
+   * Create actions proxy using the same approach as UI packages
+   */
+  private createActionsProxy() {
+    // List of Service base methods that should not be exposed as actions
+    const baseServiceMethods = new Set([
+      'send', 'request', 'on', 'off', 'once', 'removeAllListeners',
+      'hasListeners', 'getListenerCount', 'getState', 'clear',
+      'getMessageHistory', 'clearMessageHistory', 'replayMessages', 'resolveRequest'
+    ])
+
+    return new Proxy({} as any, {
+      get: (target, prop: string | symbol) => {
+        if (typeof prop === 'string') {
+          // Check if this is a valid action method
+          const method = this.service[prop]
+          if (typeof method === 'function' && !baseServiceMethods.has(prop)) {
+            // Return a function that sends the message to the service
+            return async (...args: any[]) => {
+              return this.service.send(prop, args)
+            }
+          }
+        }
+        return target[prop]
+      },
+
+      // Support for Object.keys(), Object.entries(), etc. and destructuring
+      ownKeys: () => {
+        // Get all methods that are actions (not base service methods)
+        const servicePrototype = Object.getPrototypeOf(this.service)
+        return Object.getOwnPropertyNames(servicePrototype)
+          .filter(name => typeof this.service[name] === 'function')
+          .filter(name => !name.startsWith('_') && name !== 'constructor')
+          .filter(name => !baseServiceMethods.has(name))
+      },
+
+      getOwnPropertyDescriptor: (_, prop) => {
+        if (typeof prop === 'string') {
+          const method = this.service[prop]
+          if (typeof method === 'function' && !baseServiceMethods.has(prop)) {
+            return {
+              enumerable: true,
+              configurable: true,
+              value: async (...args: any[]) => this.service.send(prop, args)
+            }
+          }
+        }
+        return undefined
+      },
+
+      has: (_, prop) => {
+        if (typeof prop === 'string') {
+          const method = this.service[prop]
+          return typeof method === 'function' && !baseServiceMethods.has(prop)
+        }
+        return false
       }
     })
   }
+
 
   /**
    * Get a snapshot of all current state (preferred over getAllState)
@@ -82,54 +180,7 @@ export class ServiceClient<T extends TypedServiceToken> {
     return compositeSubscription
   }
 
-  /**
-   * Send a message to the service (only works with MessageService + @withMessages)
-   */
-  async send(messageType: string, payload?: any): Promise<void> {
-    if (typeof this.service.send === 'function') {
-      return this.service.send(messageType, payload || {})
-    }
-    throw new Error(
-      `Service ${this.service.constructor.name} does not support message sending. ` +
-      `Make sure it extends MessageService and uses @withMessages decorator.`
-    )
-  }
 
-  /**
-   * Get actions object (same as createServiceActions but for headless use)
-   */
-  getActions(): any {
-    const actions = {} as any
-    
-    // Check if service has decorator metadata
-    const messageTypes = this.service.__messageTypes
-    const actionCreators = this.service.__actionCreators
-    
-    if (messageTypes && Array.isArray(messageTypes)) {
-      messageTypes.forEach((type: string) => {
-        const methodName = this.toCamelCase(type)
-        const customAction = actionCreators?.[type]
-        
-        if (customAction) {
-          actions[methodName] = async (...args: any[]) => {
-            const payload = customAction(...args)
-            return this.service.send(type, payload)
-          }
-        } else {
-          actions[methodName] = async (payload?: any) => {
-            return this.service.send(type, payload || {})
-          }
-        }
-      })
-    } else {
-      throw new Error(
-        `Service ${this.service.constructor.name} does not use @withMessages decorator. ` +
-        `For pure message-passing architecture, all services should extend MessageService.`
-      )
-    }
-    
-    return actions
-  }
 
   /**
    * Clean up all subscriptions
@@ -139,19 +190,58 @@ export class ServiceClient<T extends TypedServiceToken> {
     this.subscriptions.clear()
   }
 
-  private toCamelCase(str: string): string {
-    return str.toLowerCase().replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
-  }
 }
 
 /**
- * Factory function to create a service client
+ * Factory function to create a service client with the same API as UI packages
+ *
+ * @example
+ * ```typescript
+ * const client = createServiceClient(container, TodoToken)
+ *
+ * // State access (with destructuring support)
+ * console.log(client.state.items) // Direct access
+ * const { items, filter, loading } = client.state // Destructuring
+ *
+ * // Actions (with destructuring support)
+ * await client.actions.addItem('New todo') // Direct access
+ * const { addItem, removeItem } = client.actions // Destructuring
+ * await addItem('New todo')
+ * ```
  */
 export function createServiceClient<T extends TypedServiceToken>(
   container: ServiceContainer,
   serviceToken: T
 ): ServiceClient<T> {
   return new ServiceClient(container, serviceToken)
+}
+
+/**
+ * Convenience function that returns state and actions separately (similar to UI hooks)
+ *
+ * @example
+ * ```typescript
+ * const { state, actions } = useService(container, TodoToken)
+ *
+ * // Same API as React/SolidJS
+ * const { items, filter } = state
+ * const { addItem, removeItem } = actions
+ * ```
+ */
+export function useService<T extends TypedServiceToken>(
+  container: ServiceContainer,
+  serviceToken: T
+) {
+  const client = new ServiceClient(container, serviceToken)
+  return {
+    state: client.state,
+    actions: client.actions,
+    // Include utility methods for convenience
+    subscribe: client.subscribe.bind(client),
+    subscribeToAll: client.subscribeToAll.bind(client),
+    snapshot: client.snapshot.bind(client),
+    dispose: client.dispose.bind(client)
+  }
 }
 
 /**

@@ -1,10 +1,12 @@
 // Core message system types and utilities
 
-export interface MessageDefinition {
-  [messageType: string]: any
+// Base type for all service action definitions
+// Enforces camelCase action names: unknown[] pattern
+export type ServiceActions = {
+  [actionName: string]: unknown[]
 }
 
-export interface Message<T extends MessageDefinition, K extends keyof T = keyof T> {
+export interface Message<T extends ServiceActions, K extends keyof T = keyof T> {
   type: K
   payload: T[K]
   id: string
@@ -12,7 +14,7 @@ export interface Message<T extends MessageDefinition, K extends keyof T = keyof 
   correlationId?: string
 }
 
-export interface MessageHandler<T extends MessageDefinition> {
+export interface MessageHandler<T extends ServiceActions> {
   handle<K extends keyof T>(message: Message<T, K>): Promise<void> | void
 }
 
@@ -22,7 +24,7 @@ export function generateMessageId(): string {
 }
 
 // Helper to create messages
-export function createMessage<T extends MessageDefinition, K extends keyof T>(
+export function createMessage<T extends ServiceActions, K extends keyof T>(
   type: K,
   payload: T[K],
   correlationId?: string
@@ -37,14 +39,9 @@ export function createMessage<T extends MessageDefinition, K extends keyof T>(
 }
 
 // Type helpers for message-driven services
-export type MessageFromDefinition<T extends MessageDefinition, K extends keyof T> = Message<T, K>
+export type MessageFromDefinition<T extends ServiceActions, K extends keyof T> = Message<T, K>
 
-// Helper to convert UPPER_CASE to camelCase at type level
-type ToCamelCase<S extends string> = S extends `${infer P1}_${infer P2}`
-  ? `${Lowercase<P1>}${Capitalize<ToCamelCase<P2>>}`
-  : Lowercase<S>
-
-// Convert message types to action creators with camelCase method names
-export type ServiceActions<T extends MessageDefinition> = {
-  [K in keyof T as ToCamelCase<string & K>]: (...args: any[]) => Promise<void>
+// Action creators directly map to action names (no conversion needed)
+export type ActionCreators<T extends ServiceActions> = {
+  [K in keyof T]: (...args: any[]) => Promise<void>
 }

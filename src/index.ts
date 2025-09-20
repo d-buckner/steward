@@ -6,17 +6,34 @@ export { ServiceContainer } from './core/ServiceContainer'
 // Worker support
 export { withWorker, isWorkerService, getWorkerOptions } from './core/WorkerDecorator'
 export { WorkerProxy } from './core/WorkerProxy'
-export { registerWorkerService } from './worker/worker-runtime'
 export type { WorkerOptions } from './core/WorkerDecorator'
+
+// Worker service registry
+export {
+  getRegisteredWorkerServices,
+  getWorkerServiceInfo,
+  clearWorkerServiceRegistry
+} from './core/WorkerServiceRegistry'
+export type { WorkerServiceInfo } from './core/WorkerServiceRegistry'
+
+// Worker runtime - only for use in worker contexts
+export { registerWorkerService } from './worker/worker-runtime'
+
+// Message handling
 export * from './core/Messages'
-export * from './core/MessageActions'
 
 // Service Tokens
 export { createServiceToken } from './core/ServiceTokens'
-export type { TypedServiceToken, ServiceRegistry } from './core/ServiceTokens'
+export type {
+  TypedServiceToken,
+  ServiceRegistry,
+  ServiceFromToken,
+  StateFromToken,
+  ActionsFromToken
+} from './core/ServiceTokens'
 
 // Service Base Types
-export type { ServiceState, ServiceMessages } from './core/ServiceTypes'
+export type { ServiceState, ServiceActions, ExtractActions } from './core/ServiceTypes'
 
 // Types
 export type { EventBus, EventHandler, EventSubscription } from './types'
@@ -24,3 +41,5 @@ export type { ServiceConstructor } from './core/ServiceContainer'
 
 // Headless service utilities
 export * from './headless'
+
+// Build plugins are available via '@d-buckner/steward/vite'

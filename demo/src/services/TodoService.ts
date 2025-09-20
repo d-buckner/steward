@@ -1,4 +1,4 @@
-import { Service, withMessages, Message, ServiceState, ServiceMessages } from '@d-buckner/steward'
+import { Service, ServiceState } from '@d-buckner/steward'
 
 export interface Todo {
   id: string
@@ -16,37 +16,7 @@ interface TodoState extends ServiceState {
   searchQuery: string
 }
 
-interface TodoMessages extends ServiceMessages {
-  ADD_ITEM: { text: string; priority: 'low' | 'medium' | 'high'; dueDate?: Date }
-  TOGGLE_ITEM: { id: string }
-  DELETE_ITEM: { id: string }
-  EDIT_ITEM: { id: string; text: string }
-  SET_FILTER: { filter: 'all' | 'active' | 'completed' }
-  SET_SEARCH: { query: string }
-  CLEAR_COMPLETED: {}
-  LOAD_SAMPLE_DATA: {}
-}
-
-@withMessages<TodoMessages>([
-  'ADD_ITEM',
-  'TOGGLE_ITEM', 
-  'DELETE_ITEM',
-  'EDIT_ITEM',
-  'SET_FILTER',
-  'SET_SEARCH',
-  'CLEAR_COMPLETED',
-  'LOAD_SAMPLE_DATA'
-], {
-  ADD_ITEM: (text: string, priority: 'low' | 'medium' | 'high' = 'medium', dueDate?: Date) => ({ text, priority, dueDate }),
-  TOGGLE_ITEM: (id: string) => ({ id }),
-  DELETE_ITEM: (id: string) => ({ id }),
-  EDIT_ITEM: (id: string, text: string) => ({ id, text }),
-  SET_FILTER: (filter: 'all' | 'active' | 'completed') => ({ filter }),
-  SET_SEARCH: (query: string) => ({ query }),
-  CLEAR_COMPLETED: () => ({}),
-  LOAD_SAMPLE_DATA: () => ({})
-})
-export class TodoService extends Service<TodoState, TodoMessages> {
+export class TodoService extends Service<TodoState> {
   constructor() {
     super({
       items: [],
@@ -56,106 +26,86 @@ export class TodoService extends Service<TodoState, TodoMessages> {
     })
   }
 
-  async handle<K extends keyof TodoMessages>(
-    message: Message<TodoMessages, K>
-  ): Promise<void> {
-    switch (message.type) {
-      case 'ADD_ITEM': {
-        const { text, priority, dueDate } = message.payload as TodoMessages['ADD_ITEM']
-        const newItem: Todo = {
-          id: Date.now().toString(),
-          text: text.trim(),
-          completed: false,
-          priority,
-          createdAt: Date.now(),
-          dueDate
-        }
-        this.setState('items', [...this.state.items, newItem])
-        break
-      }
-
-      case 'TOGGLE_ITEM': {
-        const { id } = message.payload as TodoMessages['TOGGLE_ITEM']
-        this.setState('items', this.state.items.map(item =>
-          item.id === id ? { ...item, completed: !item.completed } : item
-        ))
-        break
-      }
-
-      case 'DELETE_ITEM': {
-        const { id } = message.payload as TodoMessages['DELETE_ITEM']
-        this.setState('items', this.state.items.filter(item => item.id !== id))
-        break
-      }
-
-      case 'EDIT_ITEM': {
-        const { id, text } = message.payload as TodoMessages['EDIT_ITEM']
-        this.setState('items', this.state.items.map(item =>
-          item.id === id ? { ...item, text: text.trim() } : item
-        ))
-        break
-      }
-
-      case 'SET_FILTER': {
-        const { filter } = message.payload as TodoMessages['SET_FILTER']
-        this.setState('filter', filter)
-        break
-      }
-
-      case 'SET_SEARCH': {
-        const { query } = message.payload as TodoMessages['SET_SEARCH']
-        this.setState('searchQuery', query)
-        break
-      }
-
-      case 'CLEAR_COMPLETED': {
-        this.setState('items', this.state.items.filter(item => !item.completed))
-        break
-      }
-
-      case 'LOAD_SAMPLE_DATA': {
-        this.setState('loading', true)
-        
-        // Simulate async loading
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        const sampleTodos: Todo[] = [
-          {
-            id: '1',
-            text: 'Learn Steward library',
-            completed: true,
-            priority: 'high',
-            createdAt: Date.now() - 86400000
-          },
-          {
-            id: '2', 
-            text: 'Build awesome SolidJS app',
-            completed: false,
-            priority: 'high',
-            createdAt: Date.now() - 3600000,
-            dueDate: new Date(Date.now() + 86400000 * 3)
-          },
-          {
-            id: '3',
-            text: 'Try message-driven architecture',
-            completed: false,
-            priority: 'medium',
-            createdAt: Date.now() - 1800000
-          },
-          {
-            id: '4',
-            text: 'Explore strongly typed state proxy',
-            completed: false,
-            priority: 'low',
-            createdAt: Date.now() - 900000
-          }
-        ]
-        
-        this.setState('items', sampleTodos)
-        this.setState('loading', false)
-        break
-      }
+  addItem(text: string, priority: 'low' | 'medium' | 'high' = 'medium', dueDate?: Date) {
+    const newItem: Todo = {
+      id: Date.now().toString(),
+      text: text.trim(),
+      completed: false,
+      priority,
+      createdAt: Date.now(),
+      dueDate
     }
+    this.setState('items', [...this.state.items, newItem])
+  }
+
+  toggleItem(id: string) {
+    this.setState('items', this.state.items.map(item =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ))
+  }
+
+  deleteItem(id: string) {
+    this.setState('items', this.state.items.filter(item => item.id !== id))
+  }
+
+  editItem(id: string, text: string) {
+    this.setState('items', this.state.items.map(item =>
+      item.id === id ? { ...item, text: text.trim() } : item
+    ))
+  }
+
+  setFilter(filter: 'all' | 'active' | 'completed') {
+    this.setState('filter', filter)
+  }
+
+  setSearch(query: string) {
+    this.setState('searchQuery', query)
+  }
+
+  clearCompleted() {
+    this.setState('items', this.state.items.filter(item => !item.completed))
+  }
+
+  async loadSampleData() {
+    this.setState('loading', true)
+
+    // Simulate async loading
+    await new Promise(resolve => setTimeout(resolve, 800))
+
+    const sampleTodos: Todo[] = [
+      {
+        id: '1',
+        text: 'Learn Steward library',
+        completed: true,
+        priority: 'high',
+        createdAt: Date.now() - 86400000
+      },
+      {
+        id: '2',
+        text: 'Build awesome SolidJS app',
+        completed: false,
+        priority: 'high',
+        createdAt: Date.now() - 3600000,
+        dueDate: new Date(Date.now() + 86400000 * 3)
+      },
+      {
+        id: '3',
+        text: 'Try message-driven architecture',
+        completed: false,
+        priority: 'medium',
+        createdAt: Date.now() - 1800000
+      },
+      {
+        id: '4',
+        text: 'Explore strongly typed state proxy',
+        completed: false,
+        priority: 'low',
+        createdAt: Date.now() - 900000
+      }
+    ]
+
+    this.setState('items', sampleTodos)
+    this.setState('loading', false)
   }
 
   // Computed properties using strongly typed state access

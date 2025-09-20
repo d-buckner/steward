@@ -1,8 +1,8 @@
 import { Service } from './Service'
-import { ServiceState, ServiceMessages } from './ServiceTypes'
+import { ServiceState, ServiceActions } from './ServiceTypes'
 
-// Base token type
-export interface TypedServiceToken<T extends Service<ServiceState, ServiceMessages> = Service<ServiceState, ServiceMessages>> {
+// Base token type - more flexible, allowing any service that extends the base Service
+export interface TypedServiceToken<T extends Service<any, any> = Service<ServiceState, ServiceActions>> {
   readonly __type: T
   readonly symbol: symbol
   readonly name: string
@@ -12,7 +12,7 @@ export interface TypedServiceToken<T extends Service<ServiceState, ServiceMessag
 export interface ServiceRegistry {}
 
 // Helper to create typed tokens
-export function createServiceToken<T extends Service<ServiceState, ServiceMessages>>(name: string): TypedServiceToken<T> {
+export function createServiceToken<T extends Service<any, any>>(name: string): TypedServiceToken<T> {
   return {
     __type: {} as T,
     symbol: Symbol(name),
@@ -34,5 +34,5 @@ export namespace ServiceToken {
 export type ServiceFromToken<T> = T extends TypedServiceToken<infer S> ? S : never
 export type StateFromToken<T> = ServiceFromToken<T> extends Service<infer State> ? State : never
 
-// Type helper for extracting message types from message services
-export type MessagesFromToken<T> = ServiceFromToken<T> extends Service<any, infer Messages> ? Messages : never
+// Type helper for extracting action types from services
+export type ActionsFromToken<T> = ServiceFromToken<T> extends Service<any, infer Actions> ? Actions : never

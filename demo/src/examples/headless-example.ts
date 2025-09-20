@@ -14,19 +14,18 @@ container.register(TodoToken, TodoService)
 // Example 1: Basic service interaction
 async function basicExample() {
   console.log('=== Basic Headless Service Example ===')
-  
+
   const counterClient = createServiceClient(container, CounterToken)
-  const actions = counterClient.getActions()
-  
+
   // Get initial state using strongly typed proxy
   console.log('Initial count:', counterClient.state.count)
-  
-  // Send messages through actions
-  await actions.increment()
-  await actions.increment()
-  await actions.setStep(5)
-  await actions.increment()
-  
+
+  // Call methods directly on the client actions
+  await counterClient.actions.increment()
+  await counterClient.actions.increment()
+  await counterClient.actions.setStep(5)
+  await counterClient.actions.increment()
+
   console.log('Final count:', counterClient.state.count)
   console.log('Step size:', counterClient.state.step)
   console.log('Is active:', counterClient.state.isActive)
@@ -39,23 +38,22 @@ async function observationExample() {
   console.log('\n=== State Observation Example ===')
   
   const todoClient = createServiceClient(container, TodoToken)
-  const actions = todoClient.getActions()
-  
+
   // Subscribe to specific state changes with full type safety
   const itemsSubscription = todoClient.subscribe('items', (items) => {
     console.log(`📝 Todo items changed: ${items.length} items`)
     // items is fully typed as Todo[] here
   })
-  
+
   const filterSubscription = todoClient.subscribe('filter', (filter) => {
     console.log(`🔍 Filter changed to: ${filter}`)
     // filter is typed as 'all' | 'active' | 'completed'
   })
-  
+
   // Perform actions
-  await actions.addItem('Learn Steward architecture', 'high')
-  await actions.addItem('Build message-driven services', 'medium')
-  await actions.setFilter('active')
+  await todoClient.actions.addItem('Learn Steward architecture', 'high')
+  await todoClient.actions.addItem('Build message-driven services', 'medium')
+  await todoClient.actions.setFilter('active')
   
   // Clean up
   itemsSubscription.unsubscribe()
@@ -69,14 +67,13 @@ async function conditionalWaitExample() {
   
   const observer = new ServiceStateObserver(container, CounterToken)
   const counterClient = createServiceClient(container, CounterToken)
-  const actions = counterClient.getActions()
-  
+
   // Start async operation
   setTimeout(async () => {
-    await actions.reset()
-    await actions.increment()
-    await actions.increment() 
-    await actions.increment()
+    await counterClient.actions.reset()
+    await counterClient.actions.increment()
+    await counterClient.actions.increment()
+    await counterClient.actions.increment()
   }, 100)
   
   try {
@@ -96,20 +93,17 @@ async function orchestrationExample() {
   
   const counterClient = createServiceClient(container, CounterToken)
   const todoClient = createServiceClient(container, TodoToken)
-  
-  const counterActions = counterClient.getActions()
-  const todoActions = todoClient.getActions()
-  
+
   // Coordinate multiple services
-  await counterActions.reset()
-  await todoActions.clearCompleted()
-  
+  await counterClient.actions.reset()
+  await todoClient.actions.clearCompleted()
+
   // Add todos and increment counter for each
   const todos = ['Design architecture', 'Implement features', 'Write tests']
-  
+
   for (const todo of todos) {
-    await todoActions.addItem(todo, 'medium')
-    await counterActions.increment()
+    await todoClient.actions.addItem(todo, 'medium')
+    await counterClient.actions.increment()
   }
   
   console.log('Created todos:', todoClient.state.items.length)

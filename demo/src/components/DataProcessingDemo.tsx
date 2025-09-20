@@ -1,25 +1,77 @@
 import { createSignal, createEffect, onCleanup } from 'solid-js'
-import { createServiceState, useServiceContainer } from '@d-buckner/steward-solid'
+import { createServiceState, createServiceActions } from '@d-buckner/steward-solid'
 import { DataProcessingToken } from '../services'
 
 export function DataProcessingDemo() {
   const [itemCount, setItemCount] = createSignal(100000) // Start with 100K for better UX
   const [operation, setOperation] = createSignal<'sum' | 'fibonacci' | 'prime_count'>('sum')
-  
+
   // Service state - automatically synced from worker!
-  const isProcessing = createServiceState(DataProcessingToken, 'isProcessing')
-  const progress = createServiceState(DataProcessingToken, 'progress')
-  const result = createServiceState(DataProcessingToken, 'result')
-  const processedItems = createServiceState(DataProcessingToken, 'processedItems')
-  const totalItems = createServiceState(DataProcessingToken, 'totalItems')
-  
-  // Get the service directly
-  const container = useServiceContainer()
-  const service = container.resolve(DataProcessingToken)
+  const state = createServiceState(DataProcessingToken)
+
+  // Get service actions - works with both regular services and worker services
+  const actions = createServiceActions(DataProcessingToken)
+  console.log('[DataProcessingDemo] Actions created:', actions)
+  console.log('[DataProcessingDemo] startProcessing method:', actions.startProcessing)
+  console.log('[DataProcessingDemo] Actions object keys:', Object.keys(actions))
+  console.log('[DataProcessingDemo] Actions proxy target:', actions)
+
+  // Test if the proxy works for ownKeys
+  console.log('[DataProcessingDemo] Actions ownKeys:', Object.getOwnPropertyNames(actions))
+  console.log('[DataProcessingDemo] Actions has startProcessing:', 'startProcessing' in actions)
+  console.log('[DataProcessingDemo] Actions startProcessing descriptor:', Object.getOwnPropertyDescriptor(actions, 'startProcessing'))
+
+  // Expose validation function globally for manual testing
+  ;(window as any).__validateDataProcessing = async () => {
+    console.log('🧪 [VALIDATION] Starting DataProcessing validation...')
+    console.log('🔧 [VALIDATION] Actions object:', actions)
+    console.log('🔧 [VALIDATION] Available action methods:', Object.getOwnPropertyNames(actions))
+    console.log('🔧 [VALIDATION] startProcessing type:', typeof actions.startProcessing)
+
+    try {
+      console.log('🚀 [VALIDATION] Testing startProcessing...')
+      const testItems = [1, 2, 3, 4, 5]
+      const expectedResult = 15 // 1+2+3+4+5 = 15
+
+      const result = await actions.startProcessing(testItems, 'sum')
+      console.log('✅ [VALIDATION] startProcessing completed with result:', result)
+      console.log('🎯 [VALIDATION] Expected result:', expectedResult)
+
+      const success = result === expectedResult
+      console.log(success ? '🎉 [VALIDATION] SUCCESS - Action routing is working!' : '❌ [VALIDATION] FAILED - Result mismatch')
+
+      return { success, result, expected: expectedResult, actions: Object.getOwnPropertyNames(actions) }
+    } catch (error) {
+      console.error('❌ [VALIDATION] FAILED with error:', error)
+      return { success: false, error: error.message, actions: Object.getOwnPropertyNames(actions) }
+    }
+  }
+
+  // Auto-trigger validation in development after a delay
+  if (process.env.NODE_ENV === 'development') {
+    setTimeout(() => {
+      console.log('🔄 [VALIDATION] Auto-triggering validation test...')
+      ;(window as any).__validateDataProcessing?.()
+    }, 3000)
+  }
 
   const handleStartProcessing = async () => {
+    console.log('[DataProcessingDemo] Starting processing...')
+    console.log('[DataProcessingDemo] Actions object:', actions)
+    console.log('[DataProcessingDemo] startProcessing method type:', typeof actions.startProcessing)
+    console.log('[DataProcessingDemo] startProcessing method:', actions.startProcessing)
+
     const items = Array.from({ length: itemCount() }, (_, i) => Math.floor(Math.random() * 100) + 1)
-    await service.startProcessing(items, operation())
+    console.log('[DataProcessingDemo] Calling startProcessing with', items.length, 'items and operation:', operation())
+
+    try {
+      console.log('[DataProcessingDemo] About to call actions.startProcessing...')
+      const result = await actions.startProcessing(items, operation())
+      console.log('[DataProcessingDemo] startProcessing completed with result:', result)
+    } catch (error) {
+      console.error('[DataProcessingDemo] startProcessing failed with error:', error)
+      console.error('[DataProcessingDemo] Error stack:', error.stack)
+    }
   }
 
   const formatNumber = (num: number | null | undefined) => {
@@ -71,7 +123,7 @@ export function DataProcessingDemo() {
               step="10000"
               value={itemCount()}
               onInput={(e) => setItemCount(parseInt(e.currentTarget.value))}
-              disabled={isProcessing()}
+              disabled={state.isProcessing}
             />
             <span class="control-value">{itemCount().toLocaleString()}</span>
           </label>
@@ -84,35 +136,35 @@ export function DataProcessingDemo() {
               <button 
                 class="btn btn-sm"
                 onClick={() => setItemCount(10000)}
-                disabled={isProcessing()}
+                disabled={state.isProcessing}
               >
                 10K
               </button>
               <button 
                 class="btn btn-sm"
                 onClick={() => setItemCount(100000)}
-                disabled={isProcessing()}
+                disabled={state.isProcessing}
               >
                 100K
               </button>
               <button 
                 class="btn btn-sm"
                 onClick={() => setItemCount(1000000)}
-                disabled={isProcessing()}
+                disabled={state.isProcessing}
               >
                 1M
               </button>
               <button 
                 class="btn btn-sm"
                 onClick={() => setItemCount(5000000)}
-                disabled={isProcessing()}
+                disabled={state.isProcessing}
               >
                 5M
               </button>
               <button 
                 class="btn btn-sm extreme"
                 onClick={() => setItemCount(10000000)}
-                disabled={isProcessing()}
+                disabled={state.isProcessing}
               >
                 10M 🚀
               </button>
@@ -126,7 +178,7 @@ export function DataProcessingDemo() {
             <select
               value={operation()}
               onChange={(e) => setOperation(e.currentTarget.value as any)}
-              disabled={isProcessing()}
+              disabled={state.isProcessing}
             >
               <option value="sum">Sum</option>
               <option value="fibonacci">Fibonacci</option>
@@ -143,23 +195,23 @@ export function DataProcessingDemo() {
         <div class="demo-actions">
           <button
             onClick={handleStartProcessing}
-            disabled={isProcessing()}
+            disabled={state.isProcessing}
             class="btn btn-primary"
           >
-            {isProcessing() ? 'Processing...' : 'Start Processing'}
+            {state.isProcessing ? 'Processing...' : 'Start Processing'}
           </button>
           
           <button
-            onClick={() => service.cancelProcessing()}
-            disabled={!isProcessing()}
+            onClick={() => actions.cancelProcessing()}
+            disabled={!state.isProcessing}
             class="btn btn-secondary"
           >
             Cancel
           </button>
           
           <button
-            onClick={() => service.reset()}
-            disabled={isProcessing()}
+            onClick={() => actions.reset()}
+            disabled={state.isProcessing}
             class="btn btn-outline"
           >
             Reset
@@ -170,22 +222,22 @@ export function DataProcessingDemo() {
       {/* Progress Display */}
       <div class="progress-section">
         <div class="progress-header">
-          <span>Progress: {Math.round((progress() || 0) * 100)}%</span>
+          <span>Progress: {Math.round((state.progress || 0) * 100)}%</span>
           <span>
-            {(processedItems() || 0).toLocaleString()} / {(totalItems() || 0).toLocaleString()} items
+            {(state.processedItems || 0).toLocaleString()} / {(state.totalItems || 0).toLocaleString()} items
           </span>
         </div>
         
         <div class="progress-bar">
           <div 
             class="progress-fill"
-            style={{ width: `${(progress() || 0) * 100}%` }}
+            style={{ width: `${(state.progress || 0) * 100}%` }}
           />
         </div>
 
-        {result() !== null && (
+        {state.result !== null && (
           <div class="result-display">
-            <strong>Result: {formatNumber(result())}</strong>
+            <strong>Result: {formatNumber(state.result)}</strong>
           </div>
         )}
       </div>
@@ -211,10 +263,12 @@ export function DataProcessingDemo() {
         
         <div class="code-example">
           <h4>Service Definition:</h4>
-          <pre><code>{`@withWorker({ name: 'DataProcessor' })
-@withMessages<DataProcessingMessages>([...])
+          <pre><code>{`@withWorker('DataProcessor')
 class DataProcessingService extends Service {
   // Heavy computation runs in worker!
+  startProcessing(items: number[], operation: string) {
+    // CPU-intensive work here
+  }
 }`}</code></pre>
         </div>
       </div>

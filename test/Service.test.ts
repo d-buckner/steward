@@ -19,11 +19,6 @@ class TestService extends Service<TestState> {
     })
   }
 
-  // Required implementation - this service doesn't use messages
-  handle(): void {
-    // No-op for basic service tests
-  }
-
   // Expose protected methods for testing
   public setCount(count: number) {
     this.setState('count', count)

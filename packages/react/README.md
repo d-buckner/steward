@@ -42,12 +42,12 @@ container.register('counter', () => new CounterService())
 
 // 4. Use in components
 function Counter() {
-  const count = useServiceState('counter', 'count')
+  const state = useServiceState('counter')
   const actions = useServiceActions('counter')
 
   return (
     <div>
-      <p>Count: {count}</p>
+      <p>Count: {state.count}</p>
       <button onClick={actions.increment}>+</button>
     </div>
   )
@@ -67,27 +67,32 @@ function App() {
 
 ### useServiceState
 
-Subscribe to reactive state changes from any service.
+Subscribe to reactive state changes from any service using a proxy that automatically provides access to all state properties.
 
 ```tsx
-const value = useServiceState(serviceToken, stateKey)
+const state = useServiceState(serviceToken)
 ```
 
 **Parameters:**
 - `serviceToken` - The service identifier
-- `stateKey` - The state property to subscribe to
 
-**Returns:** Current value of the state property
+**Returns:** Proxy object providing reactive access to all state properties
 
-**Example:**
+**Examples:**
 ```tsx
-const count = useServiceState('counter', 'count')
-const username = useServiceState('auth', 'username')
+const state = useServiceState('counter')
+// Access any property: state.count, state.isActive, etc.
+
+// Destructuring support
+const { count, isActive } = useServiceState('counter')
+
+// Property access triggers automatic subscriptions
+return <div>Count: {state.count}</div> // Only re-renders when count changes
 ```
 
 ### useServiceActions
 
-Get type-safe action dispatchers for a service. Automatically detects if the service uses messages or direct methods.
+Get type-safe action dispatchers for a service. Service methods are automatically exposed as callable actions.
 
 ```tsx
 const actions = useServiceActions(serviceToken)
@@ -96,20 +101,20 @@ const actions = useServiceActions(serviceToken)
 **Parameters:**
 - `serviceToken` - The service identifier
 
-**Returns:** Object with action methods
+**Returns:** Proxy object with action methods
 
 **Examples:**
 
-For traditional services:
 ```tsx
 const actions = useServiceActions('counter')
-// actions.increment() - calls method directly
-```
+// All public methods become actions: actions.increment(), actions.decrement(), etc.
 
-For message-driven services:
-```tsx
-const actions = useServiceActions('todos')
-// actions.addItem('Buy milk', 1) - converts to message
+// Destructuring support
+const { increment, decrement, reset } = useServiceActions('counter')
+
+// All actions are async and message-driven
+await actions.increment()
+await increment() // Same effect
 ```
 
 ### useServiceContainer
@@ -144,31 +149,42 @@ Provides the service container to child components via React context.
 - `container` - ServiceContainer instance
 - `children` - React children
 
-## Message-driven Services
+## Service Examples
 
-For services using message-driven architecture:
+All service methods automatically become callable actions:
 
 ```tsx
-import { MessageService, withMessages } from '@d-buckner/steward'
+import { Service } from '@d-buckner/steward'
 
-interface TodoMessages {
-  ADD_ITEM: { text: string; priority: number }
-  TOGGLE_ITEM: { id: string }
-  DELETE_ITEM: { id: string }
+interface TodoState {
+  items: TodoItem[]
+  filter: 'all' | 'active' | 'completed'
 }
 
-@withMessages(['ADD_ITEM', 'TOGGLE_ITEM', 'DELETE_ITEM'], {
-  ADD_ITEM: (text: string, priority: number = 0) => ({ text, priority }),
-  TOGGLE_ITEM: (id: string) => ({ id }),
-  DELETE_ITEM: (id: string) => ({ id })
-})
-class TodoService extends MessageService<TodoState, TodoMessages> {
-  // Implementation
+class TodoService extends Service<TodoState> {
+  constructor() {
+    super({ items: [], filter: 'all' })
+  }
+
+  addItem(text: string, priority: number = 0) {
+    const newItem = { id: generateId(), text, priority, completed: false }
+    this.setState('items', [...this.state.items, newItem])
+  }
+
+  toggleItem(id: string) {
+    this.setState('items', this.state.items.map(item =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ))
+  }
+
+  deleteItem(id: string) {
+    this.setState('items', this.state.items.filter(item => item.id !== id))
+  }
 }
 
 // Usage in components
 function TodoApp() {
-  const items = useServiceState('todos', 'items')
+  const state = useServiceState('todos')
   const actions = useServiceActions('todos')
 
   return (
@@ -176,8 +192,8 @@ function TodoApp() {
       <button onClick={() => actions.addItem('New task', 2)}>
         Add High Priority Task
       </button>
-      
-      {items?.map(item => (
+
+      {state.items?.map(item => (
         <div key={item.id}>
           <span onClick={() => actions.toggleItem(item.id)}>
             {item.text}
@@ -197,22 +213,26 @@ function TodoApp() {
 Full TypeScript support with automatic type inference:
 
 ```typescript
-// State types are inferred
-const count: number = useServiceState('counter', 'count')
+// State proxy provides full type safety
+const state = useServiceState(CounterToken) // Typed as CounterState
+const count: number = state.count // Property access is fully typed
+
+// Destructuring maintains types
+const { count, isActive }: { count: number; isActive: boolean } = useServiceState(CounterToken)
 
 // Action types are inferred from service methods
 const actions: {
   increment: () => Promise<void>
   decrement: () => Promise<void>
   reset: () => Promise<void>
-} = useServiceActions('counter')
+} = useServiceActions(CounterToken)
 ```
 
 ## Best Practices
 
-1. **Minimize subscriptions** - Only subscribe to state you actually need
-2. **Use action creators** - Prefer expressive APIs over raw message sending  
-3. **Type your services** - Register service types for full TypeScript support
+1. **Use proxy-based state access** - Access only the properties you need; subscriptions are automatic
+2. **Leverage destructuring** - Extract specific properties for cleaner component code
+3. **Use service tokens** - Create typed tokens for full TypeScript support
 4. **Compose services** - Break complex state into focused service domains
 5. **Test components** - Use ServiceProvider in tests with mock containers
 

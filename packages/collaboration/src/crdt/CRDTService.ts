@@ -1,5 +1,5 @@
 import * as Automerge from '@automerge/automerge'
-import { Service, ServiceState, ServiceMessages } from '@steward/core'
+import { Service, ServiceActions } from '@d-buckner/steward'
 import { ChangeFunction, CRDTState, CRDTDocument } from './types'
 
 /**
@@ -8,7 +8,7 @@ import { ChangeFunction, CRDTState, CRDTDocument } from './types'
  */
 export abstract class CRDTService<
   TState extends CRDTState,
-  Messages extends ServiceMessages = ServiceMessages
+  Messages extends ServiceActions = ServiceActions
 > extends Service<TState, Messages> {
   private doc: CRDTDocument<TState>
 

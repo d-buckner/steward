@@ -14,22 +14,22 @@ Consider a typical React application as it grows:
 
 ```tsx
 // This starts simple...
-function TodoApp() {
-  const [todos, setTodos] = useState([])
-  const [filter, setFilter] = useState('all')
-  const [loading, setLoading] = useState(false)
+function CodeEditor() {
+  const [content, setContent] = useState('')
+  const [diagnostics, setDiagnostics] = useState([])
+  const [isLinting, setIsLinting] = useState(false)
 
   // But quickly becomes this...
-  const [notifications, setNotifications] = useState([])
-  const [users, setUsers] = useState([])
-  const [permissions, setPermissions] = useState({})
-  const [theme, setTheme] = useState('light')
-  const [analytics, setAnalytics] = useState({})
+  const [syntaxTree, setSyntaxTree] = useState(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [highlights, setHighlights] = useState([])
+  const [symbols, setSymbols] = useState([])
+  const [completionCache, setCompletionCache] = useState({})
   // ... and keeps growing
 }
 ```
 
-Now imagine you need that todo processing to be really fast - maybe you're dealing with millions of items. You'd need to move the work to a Web Worker, which means:
+Now imagine you need that syntax parsing and linting to be really fast - maybe you're dealing with large files or complex analysis. You'd need to move the work to a Web Worker, which means:
 
 1. Rewriting your logic to work with postMessage
 2. Serializing/deserializing data across the worker boundary
@@ -43,22 +43,45 @@ What started as a simple state update becomes a distributed systems problem.
 Instead of fighting against these constraints, we embrace them. Every piece of functionality becomes a service - a lightweight, isolated process that manages its own state and communicates purely through messages.
 
 ```typescript
-// A service is just a class that handles messages and manages state
-class TodoService extends Service<TodoState, TodoMessages> {
+// Build a code editor with multiple coordinating services
+class DocumentService extends Service<DocumentState> {
   constructor() {
-    super({ items: [], filter: 'all', loading: false })
+    super({
+      content: '',
+      syntaxTree: null,
+      diagnostics: [],
+      highlights: []
+    })
   }
 
-  async handle(message: Message<TodoMessages>) {
-    switch (message.type) {
-      case 'ADD_ITEM': {
-        const { text } = message.payload
-        const newItem = { id: generateId(), text, completed: false }
-        this.setState('items', [...this.state.items, newItem])
-        break
-      }
-      // Handle other messages...
-    }
+  updateContent(content: string) {
+    this.setState('content', content)
+    this.parseDocument(content)
+  }
+
+  parseDocument(content: string) {
+    // Syntax highlighting and error detection
+    const syntaxTree = this.buildSyntaxTree(content)
+    const diagnostics = this.runLinting(content)
+    const highlights = this.generateHighlights(syntaxTree)
+
+    this.setState({ syntaxTree, diagnostics, highlights })
+  }
+}
+
+class AutocompleteService extends Service<AutocompleteState> {
+  constructor(private documentService: DocumentService) {
+    super({ suggestions: [], isLoading: false })
+  }
+
+  async generateSuggestions(position: number) {
+    this.setState('isLoading', true)
+
+    // ML-powered intelligent completions
+    const context = this.documentService.state.content
+    const suggestions = await this.runInference(context, position)
+
+    this.setState({ suggestions, isLoading: false })
   }
 }
 ```
@@ -66,28 +89,41 @@ class TodoService extends Service<TodoState, TodoMessages> {
 Your React components interact with services through a clean, reactive API:
 
 ```tsx
-function TodoApp() {
-  const items = useServiceState(TodoToken, 'items')
-  const actions = useServiceActions(TodoToken)
+function CodeEditor() {
+  const docState = useServiceState(DocumentToken)
+  const autocompleteState = useServiceState(AutocompleteToken)
+  const docActions = useServiceActions(DocumentToken)
 
   return (
-    <div>
-      <button onClick={() => actions.addItem('Learn Steward')}>
-        Add Todo
-      </button>
-      {items.map(item => <TodoItem key={item.id} item={item} />)}
+    <div className="editor">
+      <CodeMirror
+        value={docState.content}
+        onChange={docActions.updateContent}
+        highlights={docState.highlights}
+        diagnostics={docState.diagnostics}
+      />
+
+      <AutocompleteSuggestions
+        suggestions={autocompleteState.suggestions}
+        loading={autocompleteState.isLoading}
+      />
     </div>
   )
 }
 ```
 
-But here's where it gets interesting. When you need that todo processing to be faster, you don't rewrite anything:
+But here's where it gets interesting. When your files get large and parsing starts blocking the UI, you don't rewrite anything:
 
 ```typescript
-// Just add a decorator
-@withWorker({ name: 'TodoProcessor' })
-class TodoService extends Service<TodoState, TodoMessages> {
-  // Exact same code - now runs in a Web Worker
+// Just add a decorator - same code, now runs in a Web Worker
+@withWorker('DocumentProcessor')
+class DocumentService extends Service<DocumentState> {
+  // Exact same parsing logic - now non-blocking
+}
+
+@withWorker('MLInference')
+class AutocompleteService extends Service<AutocompleteState> {
+  // Heavy ML inference - now in dedicated worker
 }
 ```
 
@@ -98,18 +134,18 @@ Your React components don't change. Your service logic doesn't change. The frame
 This is the core insight from distributed systems that Steward brings to frontend development: **if your architecture is already message-driven, location becomes irrelevant**.
 
 ```typescript
-// These three services have identical APIs from your component's perspective:
+// These services have identical APIs from your component's perspective:
 
-// Runs in main thread
-class SearchService extends Service { /* ... */ }
+// Runs in main thread - fast startup
+class AutocompleteService extends Service { /* ... */ }
 
-// Runs in Web Worker (CPU-intensive operations)
-@withWorker()
-class SearchService extends Service { /* ... */ }
+// Runs in Web Worker - heavy ML inference
+@withWorker('MLInference')
+class AutocompleteService extends Service { /* ... */ }
 
-// Runs as remote service (future)
-@withRemoteService({ endpoint: 'https://api.example.com' })
-class SearchService extends Service { /* ... */ }
+// Runs as remote service - your own inference API (future)
+@withRemoteService('https://api.yourapp.com/autocomplete')
+class AutocompleteService extends Service { /* ... */ }
 ```
 
 Whether a service runs locally, in a worker, or on a remote server becomes an implementation detail, not an architectural constraint.
@@ -118,50 +154,42 @@ Whether a service runs locally, in a worker, or on a remote server becomes an im
 
 You don't need to design for distribution from day one. Steward lets you start simple and add complexity only when you need it:
 
-**Phase 1: Local Services**
+**Phase 1: Basic Editor**
 ```typescript
-class UserService extends Service<UserState> {
-  updateProfile(data: ProfileData) {
-    this.setState('profile', { ...this.state.profile, ...data })
+class DocumentService extends Service<DocumentState> {
+  updateContent(content: string) {
+    this.setState('content', content)
+    this.highlightSyntax(content) // Simple regex-based highlighting
   }
 }
 ```
 
-**Phase 2: Add Messaging**
+**Phase 2: Add Intelligence**
 ```typescript
-interface UserMessages extends ServiceMessages {
-  UPDATE_PROFILE: { data: ProfileData }
-  PROFILE_UPDATED: { profile: Profile }
-}
-
-@withMessages<UserMessages>(['UPDATE_PROFILE', 'PROFILE_UPDATED'])
-class UserService extends Service<UserState, UserMessages> {
-  async handle(message: Message<UserMessages>) {
-    switch (message.type) {
-      case 'UPDATE_PROFILE':
-        // Now you have structured communication, debugging, message history
-        break
-    }
+class DocumentService extends Service<DocumentState> {
+  updateContent(content: string) {
+    this.setState('content', content)
+    this.parseAST(content)      // Full syntax tree
+    this.runLinting(content)    // Error detection
+    this.updateDiagnostics()    // Real-time feedback
   }
 }
 ```
 
-**Phase 3: Scale to Workers**
+**Phase 3: Scale Performance**
 ```typescript
-@withWorker({ name: 'UserProcessor' })
-@withMessages<UserMessages>(['UPDATE_PROFILE', 'PROFILE_UPDATED'])
-class UserService extends Service<UserState, UserMessages> {
-  // Same code, now runs in worker for performance
+@withWorker('DocumentProcessor')
+class DocumentService extends Service<DocumentState> {
+  // Same parsing logic, now non-blocking
 }
 ```
 
-**Phase 4: Add Collaboration (Future)**
+**Phase 4: Add Collaboration**
 ```typescript
-@withCRDT({ type: 'document' })
-@withWorker({ name: 'UserProcessor' })
-@withMessages<UserMessages>(['UPDATE_PROFILE', 'PROFILE_UPDATED'])
-class UserService extends Service<UserState, UserMessages> {
-  // Same code, now supports real-time collaboration
+@withCRDT({ type: 'text' })
+@withWorker('DocumentProcessor')
+class DocumentService extends Service<DocumentState> {
+  // Same code, now supports real-time collaborative editing
 }
 ```
 
@@ -175,37 +203,79 @@ npm install @d-buckner/steward @steward/react
 // 1. Define your service
 import { Service, createServiceToken, ServiceState } from '@d-buckner/steward'
 
-interface CounterState extends ServiceState {
-  count: number
+interface EditorState extends ServiceState {
+  content: string
+  diagnostics: Diagnostic[]
+  isLinting: boolean
 }
 
-class CounterService extends Service<CounterState> {
+class EditorService extends Service<EditorState> {
   constructor() {
-    super({ count: 0 })
+    super({
+      content: '',
+      diagnostics: [],
+      isLinting: false
+    })
   }
 
-  handle() {} // Required abstract method
+  updateContent(content: string) {
+    this.setState('content', content)
+    this.lintContent(content)
+  }
 
-  increment() {
-    this.setState('count', this.state.count + 1)
+  async lintContent(content: string) {
+    this.setState('isLinting', true)
+    const diagnostics = await this.runLinter(content)
+    this.setState({ diagnostics, isLinting: false })
+  }
+
+  private async runLinter(content: string): Promise<Diagnostic[]> {
+    // Your linting logic here
+    return []
   }
 }
 
-export const CounterToken = createServiceToken<CounterService>('counter')
+export const EditorToken = createServiceToken<EditorService>('editor')
 ```
 
 ```tsx
 // 2. Use in React
 import { useServiceState, useServiceActions } from '@steward/react'
 
-function Counter() {
-  const count = useServiceState(CounterToken, 'count')
-  const actions = useServiceActions(CounterToken)
+function CodeEditor() {
+  const state = useServiceState(EditorToken)
+  const actions = useServiceActions(EditorToken)
 
   return (
-    <div>
-      <p>Count: {count}</p>
-      <button onClick={actions.increment}>+</button>
+    <div className="editor">
+      <textarea
+        value={state.content}
+        onChange={(e) => actions.updateContent(e.target.value)}
+        placeholder="Start typing code..."
+      />
+
+      {state.isLinting && <div className="spinner">Linting...</div>}
+
+      <DiagnosticsPanel diagnostics={state.diagnostics} />
+    </div>
+  )
+}
+
+// Or use destructuring for cleaner code
+function CodeEditorWithDestructuring() {
+  const { content, diagnostics, isLinting } = useServiceState(EditorToken)
+  const { updateContent } = useServiceActions(EditorToken)
+
+  return (
+    <div className="editor">
+      <textarea
+        value={content}
+        onChange={(e) => updateContent(e.target.value)}
+        placeholder="Start typing code..."
+      />
+
+      {isLinting && <div className="spinner">Linting...</div>}
+      <DiagnosticsPanel diagnostics={diagnostics} />
     </div>
   )
 }
@@ -213,9 +283,9 @@ function Counter() {
 
 ```typescript
 // 3. Scale when needed
-@withWorker({ name: 'CounterProcessor' })
-class CounterService extends Service<CounterState> {
-  // Same code, now runs in worker if needed
+@withWorker('EditorProcessor')
+class EditorService extends Service<EditorState> {
+  // Same linting logic, now runs in worker for non-blocking performance
 }
 ```
 
@@ -253,6 +323,34 @@ But it's designed specifically for the constraints and opportunities of frontend
 **Hot Reloading**: Update services without losing application state
 
 **Type Safety**: Full TypeScript support with intelligent auto-completion
+
+## Headless Usage
+
+Steward also works outside of UI frameworks through the headless ServiceClient API:
+
+```typescript
+import { createServiceClient, useService } from '@d-buckner/steward'
+
+// Direct client usage
+const client = createServiceClient(container, CounterToken)
+
+// Same API as UI packages
+console.log(client.state.count) // Direct access
+const { count } = client.state  // Destructuring support
+
+await client.actions.increment() // Direct actions
+const { increment } = client.actions // Destructuring support
+
+// Or use the convenience function
+const { state, actions, dispose } = useService(container, CounterToken)
+const { count } = state
+const { increment } = actions
+
+await increment()
+console.log(count) // Updated value
+```
+
+This makes Steward perfect for Node.js backends, CLI tools, testing environments, or any JavaScript environment where you need reactive state management.
 
 ## Packages
 

@@ -1,139 +1,188 @@
 # Architecture Guide
 
-This guide explains the design principles and architectural decisions behind Steward.
+You've built a React app. It started simple - a component here, some useState there, maybe a useContext for the data that needs to be shared. But as your app grew, you probably ran into some familiar problems.
 
-## Overview
+Your components started getting tightly coupled because they all needed to share state. Performance became an issue when you needed to do some heavy computation, but moving that work to a Web Worker meant rewriting your entire approach. And somewhere along the way, what started as clean, predictable code became increasingly complex to maintain.
 
-Steward is a service-based architecture inspired by message-driven systems like Elixir's Waterpark platform. It provides location transparency, making services easily distributable across network boundaries and worker threads.
+Sound familiar? These aren't unique problems - they're fundamental challenges that come with building any system that needs to scale. And they've been solved before.
 
-## Core Principles
+## Learning from the BEAM
 
-### 1. Message-driven Communication
+The Erlang BEAM virtual machine has been running distributed, fault-tolerant systems for decades. WhatsApp handles billions of messages through it. Discord's real-time chat relies on it. The secret isn't some complex technology - it's a surprisingly simple idea: build your system from isolated processes that communicate purely through messages.
 
-Services communicate exclusively through messages, not direct method calls. This enables:
+In the BEAM world, everything is a process. Need to handle user authentication? That's a process. Managing a chat room? Another process. Each process is completely isolated, manages its own state, and communicates with other processes only through message passing. If a process crashes, it doesn't take down your entire system.
 
-- **Location transparency** - Services can run anywhere (main thread, worker, remote)
-- **Debugging** - All interactions are traceable message events
-- **Testing** - Easy to mock and replay message sequences
-- **Distribution** - Services can be moved to different execution contexts
+But here's the key insight: **if your system is already message-driven, it doesn't matter where those processes actually run**. They could be on the same machine, distributed across a cluster, or running in completely different data centers. The programming model stays exactly the same.
 
-```typescript
-// Instead of direct calls
-userService.updateProfile(name, email)
+Steward brings this battle-tested approach to frontend development.
 
-// Use messages
-await userService.send('UPDATE_PROFILE', { name, email })
-```
+## Message-Driven Architecture
 
-### 2. Push-based Reactivity
-
-State changes flow through the system via events, not polling or manual subscriptions:
+Instead of thinking about your application as a tree of components sharing state, think about it as a collection of services that communicate through messages.
 
 ```typescript
-// State updates automatically notify all subscribers
-service.updateState({ count: newCount })
+// Instead of this tightly-coupled approach
+function TodoApp() {
+  const [todos, setTodos] = useState([])
+  const [filter, setFilter] = useState('all')
 
-// React components re-render automatically
-const count = useServiceState('counter', 'count')
-```
+  const addTodo = (text) => {
+    const newTodo = { id: generateId(), text, completed: false }
+    setTodos([...todos, newTodo])
+    // Also need to update analytics, sync to server, etc.
+  }
 
-### 3. Expressive APIs
-
-Despite message-driven internals, APIs remain expressive through action creators:
-
-```typescript
-// Expressive function calls
-actions.addItem('Buy groceries', 2) // text, priority
-
-// Maps to messages internally
-{ type: 'ADD_ITEM', payload: { text: 'Buy groceries', priority: 2 } }
-```
-
-## Architecture Layers
-
-### Layer 1: Core Services
-
-**Service** - Base reactive state container
-- Manages local state with automatic change notifications
-- Provides event-driven subscriptions
-- Framework-agnostic foundation
-
-**MessageService** - Message-driven service extension
-- Handles async message processing
-- Supports request/response patterns
-- Maintains message history for debugging
-
-```typescript
-class Service<State extends Record<string, any>> implements EventBus {
-  private eventBus: ServiceEventBus<State>
-  private state: State
-  
-  updateState(updates: Partial<State>): void
-  get<K extends keyof State>(key: K): State[K]
-  on<T = any>(event: string, handler: EventHandler<T>): EventSubscription
-}
-
-class MessageService<State, Messages extends MessageDefinition> extends Service<State> {
-  abstract handle<K extends keyof Messages>(message: Message<Messages, K>): Promise<void> | void
-  send<K extends keyof Messages>(type: K, payload: Messages[K], correlationId?: string): Promise<void>
-  request<ReqKey, ResKey>(requestType: ReqKey, payload: Messages[ReqKey], responseType: ResKey, timeout?: number): Promise<Messages[ResKey]>
+  return <TodoList todos={todos} onAdd={addTodo} />
 }
 ```
 
-### Layer 2: Dependency Injection
-
-**ServiceContainer** - IoC container with type-safe resolution
-- Singleton service instances
-- Lazy initialization
-- Dependency graph management
-
 ```typescript
-class ServiceContainer {
-  register<K extends keyof ServiceToken.Registry>(
-    token: K, 
-    factory: () => ServiceToken.Registry[K]
-  ): void
-  
-  resolve<K extends keyof ServiceToken.Registry>(
-    token: K
-  ): ServiceToken.Registry[K]
+// Think about this service-driven approach
+class TodoService extends Service<TodoState> {
+  addTodo(text: string) {
+    const newTodo = { id: generateId(), text, completed: false }
+    this.setState('items', [...this.state.items, newTodo])
+
+    // Other services can react to this change
+    this.syncToServer(newTodo)
+    this.trackEvent('todo_added')
+  }
+
+  syncToServer(todo: Todo) {
+    // Sync logic here
+  }
+
+  trackEvent(eventName: string) {
+    // Analytics logic here
+  }
 }
 ```
 
-### Layer 3: Framework Integration
+Your React components become simple views that react to service state:
 
-**React Integration** (`@steward/react`)
-- `useServiceState` - Reactive state subscriptions with automatic re-rendering
-- `useServiceActions` - Type-safe action dispatching with message/method detection
-- `useServiceContainer` - Direct container access
-- `ServiceProvider` - Container context provider
+```typescript
+function TodoApp() {
+  const state = useServiceState(TodoToken)
+  const actions = useServiceActions(TodoToken)
 
-**SolidJS Integration** (`@steward/solid`)
-- `createServiceState` - Signal-based reactive state with fine-grained updates
-- `createServiceActions` - Action creator binding with solid reactivity
-- `ServiceProvider` - Context integration for dependency injection
-
-## Message Flow Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Component     │───▶│   Action API     │───▶│  Message Bus    │
-│  (React/Solid)  │    │  (useActions)    │    │  (EventBus)     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         ▲                                               │
-         │                                               ▼
-         │               ┌──────────────────┐    ┌─────────────────┐
-         └───────────────│   State Events   │◀───│   Service       │
-                         │  (useServiceState) │    │  (Handler)      │
-                         └──────────────────┘    └─────────────────┘
+  return <TodoList todos={state.items} onAdd={actions.addTodo} />
+}
 ```
 
-1. **Component** triggers action via expressive API
-2. **Action API** converts to message with proper payload
-3. **Message Bus** routes message to appropriate service
-4. **Service** processes message and updates state
-5. **State Events** notify all subscribers of changes
-6. **Component** re-renders with new state
+Each service is isolated, testable, and focused on a single responsibility. More importantly, the communication between services is explicit and traceable.
+
+## How the Magic Works
+
+Steward's architecture is built in layers, each solving a specific problem you encounter as your application grows.
+
+### The Foundation: Services
+
+At the bottom, you have the `Service` class. It's deceptively simple - just a container for state that notifies listeners when that state changes:
+
+```typescript
+class CounterService extends Service<{ count: number }> {
+  constructor() {
+    super({ count: 0 })
+  }
+
+  increment() {
+    this.setState('count', this.state.count + 1)
+  }
+}
+```
+
+Your React components can subscribe to specific pieces of state and automatically re-render when they change:
+
+```typescript
+function Counter() {
+  const state = useServiceState(CounterToken)
+  const actions = useServiceActions(CounterToken)
+
+  return <button onClick={actions.increment}>{state.count}</button>
+}
+```
+
+This alone solves the "sharing state between components" problem. But what happens when your logic gets more complex?
+
+### Auto-Derived Actions
+
+Services automatically expose their methods as actions through the message system. Every method becomes a callable action from your components:
+
+```typescript
+class TodoService extends Service<TodoState> {
+  // These methods automatically become actions
+  addTodo(text: string) {
+    const newTodo = { id: generateId(), text, completed: false }
+    this.setState('items', [...this.state.items, newTodo])
+
+    // Coordinate with other services
+    this.validateTodo(newTodo)
+    this.syncToServer(newTodo)
+  }
+
+  toggleTodo(id: string) {
+    this.setState('items', this.state.items.map(item =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ))
+  }
+
+  private validateTodo(todo: Todo) {
+    // Private methods are not exposed as actions
+  }
+}
+```
+
+Now your service interactions are explicit, debuggable, and testable. Every state change has a clear cause through method calls.
+
+### Dependency Injection
+
+As you build more services, you need a way to wire them together. The `ServiceContainer` handles this:
+
+```typescript
+// Register your services
+container.register(TodoToken, () => new TodoService())
+container.register(AnalyticsToken, () => new AnalyticsService())
+
+// Services can depend on each other
+class TodoService extends Service<TodoState, TodoMessages> {
+  constructor(private analytics = container.resolve(AnalyticsToken)) {
+    super({ items: [] })
+  }
+
+  async handle(message: Message<TodoMessages>) {
+    // Use other services
+    await this.analytics.track('todo_added')
+  }
+}
+```
+
+### Framework Integration
+
+Finally, you need clean ways to connect services to your UI framework. The React integration provides hooks that handle subscriptions automatically:
+
+```typescript
+// Proxy-based state access with automatic subscriptions
+const state = useServiceState(TodoToken) // Re-renders when any accessed property changes
+const { items, filter } = state // Destructuring support
+
+// Get type-safe action creators
+const actions = useServiceActions(TodoToken) // { addTodo, toggleTodo, deleteTodo }
+const { addTodo, toggleTodo } = actions // Destructuring support
+```
+
+The SolidJS integration works similarly but uses signals for even more granular reactivity.
+
+## The Information Flow
+
+Here's what actually happens when a user clicks a button in your app:
+
+1. **Component** calls an action: `actions.addTodo('Buy groceries')`
+2. **Action Proxy** routes this to the service method: `service.send('addTodo', ['Buy groceries'])`
+3. **Service** executes the method and updates its state
+4. **State Change** triggers notifications to all subscribers
+5. **Components** automatically re-render with the new state
+
+The beauty is that every step is explicit and debuggable. You can see exactly what happened, when, and why. Your React DevTools will show you the state changes, and Steward's action tracing shows you the exact sequence of method calls that caused them.
 
 ## Location Transparency
 
@@ -225,44 +274,70 @@ class DocumentService extends CRDTService<DocumentState> {
 }
 ```
 
-## Message Patterns
+## Service Communication Patterns
 
-### Fire-and-Forget
+### Direct Action Calls
 
-Most common pattern for state updates:
+Most common pattern for simple state updates:
 
 ```typescript
-await service.send('UPDATE_SETTINGS', { theme: 'dark' })
-// No response expected
+// Direct method calls become actions
+await todoService.addTodo('Buy groceries')
+await settingsService.updateTheme('dark')
 ```
 
-### Request-Response
+### Service Coordination
 
-For queries or operations requiring confirmation:
+Services can coordinate through method calls and event subscriptions:
 
 ```typescript
-const result = await service.request(
-  'CALCULATE_TOTAL',
-  { items },
-  'TOTAL_CALCULATED',
-  5000 // timeout
-)
+class UserService extends Service<UserState> {
+  login(credentials: LoginCredentials) {
+    // Update state
+    this.setState('user', authenticatedUser)
+
+    // Coordinate with other services
+    this.initializeUserData()
+    this.trackLogin()
+  }
+
+  private initializeUserData() {
+    // Initialize user-specific data
+  }
+
+  private trackLogin() {
+    // Trigger analytics
+  }
+}
 ```
 
 ### Event Broadcasting
 
-For notifying multiple services:
+For notifying multiple services about state changes:
 
 ```typescript
-// Service A
-await eventBus.broadcast('USER_LOGGED_IN', { userId: '123' })
+class UserService extends Service<UserState> {
+  login(user: User) {
+    this.setState('currentUser', user)
 
-// Services B, C, D all receive the event
-class AnalyticsService extends MessageService<{}, UserEvents> {
-  handle(message: Message<UserEvents>) {
-    if (message.type === 'USER_LOGGED_IN') {
-      this.trackEvent('login', message.payload)
-    }
+    // Emit events for other services to listen to
+    this.emit('userLoggedIn', user.id)
+  }
+}
+
+// Other services can listen for these events
+class AnalyticsService extends Service<AnalyticsState> {
+  constructor(userService: UserService) {
+    super({ events: [] })
+
+    // Subscribe to user service events
+    userService.on('userLoggedIn', (userId) => {
+      this.trackEvent('login', { userId })
+    })
+  }
+
+  trackEvent(event: string, data: any) {
+    this.setState('events', [...this.state.events, { event, data, timestamp: Date.now() }])
   }
 }
 ```
@@ -281,23 +356,19 @@ describe('CounterService', () => {
 })
 ```
 
-### Integration Testing with Messages
+### Integration Testing with Actions
 
 ```typescript
 describe('TodoService', () => {
-  it('should handle ADD_ITEM message', async () => {
+  it('should add item through action', async () => {
     const service = new TodoService()
-    
-    await service.handle({
-      type: 'ADD_ITEM',
-      payload: { text: 'Test', priority: 1 },
-      id: '1',
-      timestamp: Date.now()
-    })
-    
+
+    // Call the method directly or through action proxy
+    await service.addTodo('Test item')
+
     const items = service.state.items
     expect(items).toHaveLength(1)
-    expect(items[0].text).toBe('Test')
+    expect(items[0].text).toBe('Test item')
   })
 })
 ```
@@ -336,27 +407,37 @@ service.updateState({ name: 'test' })
 
 ### Selective Subscriptions
 
-Components only subscribe to specific state keys:
+Components automatically subscribe to all accessed state properties through the proxy:
 
 ```typescript
-// Only re-renders when 'count' changes, not 'name'
-const count = useServiceState('counter', 'count')
+function Counter() {
+  const state = useServiceState(CounterToken)
+  // Component re-renders when any accessed property changes
+  return <div>Count: {state.count}</div> // Only subscribes to 'count'
+}
+
+function CounterWithName() {
+  const { count, name } = useServiceState(CounterToken)
+  // Component re-renders when either 'count' or 'name' changes
+  return <div>{name}: {count}</div>
+}
 ```
 
-### Message History
+### Action Tracing
 
-Message services automatically maintain history for debugging:
+Services automatically maintain action history for debugging:
 
 ```typescript
-class TodoService extends MessageService<State, Messages> {
+class TodoService extends Service<TodoState> {
   constructor() {
     super({ items: [] })
-    // Message history is automatically maintained
+    // Action calls are automatically traced in development
   }
-  
-  // Access message history for debugging
-  getMessageHistory() {
-    return this.messageHistory // Available in development
+
+  addTodo(text: string) {
+    // All method calls are logged for debugging
+    const newTodo = { id: generateId(), text, completed: false }
+    this.setState('items', [...this.state.items, newTodo])
   }
 }
 ```

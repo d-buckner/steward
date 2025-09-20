@@ -113,21 +113,19 @@ import { useServiceState, useServiceActions } from '@steward/react'
 import { CounterToken } from '../services/CounterService'
 
 export function Counter() {
-  // Subscribe to specific pieces of state
-  const count = useServiceState(CounterToken, 'count')
-  const step = useServiceState(CounterToken, 'step')
-  const history = useServiceState(CounterToken, 'history')
+  // Get reactive state proxy with automatic subscriptions
+  const state = useServiceState(CounterToken)
 
   // Get all the service methods as actions
   const actions = useServiceActions(CounterToken)
 
   return (
     <div className="counter">
-      <h2>Count: {count}</h2>
+      <h2>Count: {state.count}</h2>
 
       <div className="controls">
-        <button onClick={actions.decrement}>-{step}</button>
-        <button onClick={actions.increment}>+{step}</button>
+        <button onClick={actions.decrement}>-{state.step}</button>
+        <button onClick={actions.increment}>+{state.step}</button>
         <button onClick={actions.reset}>Reset</button>
       </div>
 
@@ -136,7 +134,7 @@ export function Counter() {
           Step size:
           <input
             type="number"
-            value={step}
+            value={state.step}
             onChange={(e) => actions.setStep(Number(e.target.value))}
             min="1"
             max="10"
@@ -145,9 +143,9 @@ export function Counter() {
       </div>
 
       <div className="history">
-        <p>History ({history.length} entries):</p>
+        <p>History ({state.history.length} entries):</p>
         <div className="history-values">
-          {history.slice(-10).map((value, index) => (
+          {state.history.slice(-10).map((value, index) => (
             <span key={index} className="history-item">
               {value}
             </span>
@@ -329,7 +327,7 @@ export class TodoService extends Service<TodoState, TodoMessages> {
   getStats() {
     const { items } = this.state
     return {
-      total: items.length,
+      total: state.items.length,
       completed: items.filter(item => item.completed).length,
       active: items.filter(item => !item.completed).length
     }
@@ -357,34 +355,32 @@ import { useServiceState, useServiceActions } from '@steward/react'
 import { TodoToken } from '../services/TodoService'
 
 export function TodoApp() {
-  const items = useServiceState(TodoToken, 'items')
-  const filter = useServiceState(TodoToken, 'filter')
-  const loading = useServiceState(TodoToken, 'loading')
+  const state = useServiceState(TodoToken)
   const actions = useServiceActions(TodoToken)
 
   const filteredItems = React.useMemo(() => {
-    switch (filter) {
+    switch (state.filter) {
       case 'active':
-        return items.filter(item => !item.completed)
+        return state.items.filter(item => !item.completed)
       case 'completed':
-        return items.filter(item => item.completed)
+        return state.items.filter(item => item.completed)
       default:
-        return items
+        return state.items
     }
-  }, [items, filter])
+  }, [state.items, state.filter])
 
   return (
     <div className="todo-app">
       <header>
-        <h1>Todos ({items.length})</h1>
+        <h1>Todos ({state.items.length})</h1>
         <div className="controls">
           <button
             onClick={() => actions.addItem('New task', 'medium')}
-            disabled={loading}
+            disabled={state.loading}
           >
             Add Task
           </button>
-          <button onClick={actions.loadSampleData} disabled={loading}>
+          <button onClick={actions.loadSampleData} disabled={state.loading}>
             Load Sample Data
           </button>
           <button onClick={actions.clearCompleted}>
@@ -397,7 +393,7 @@ export function TodoApp() {
         {(['all', 'active', 'completed'] as const).map(filterType => (
           <button
             key={filterType}
-            className={filter === filterType ? 'active' : ''}
+            className={state.filter === filterType ? 'active' : ''}
             onClick={() => actions.setFilter(filterType)}
           >
             {filterType}
@@ -405,7 +401,7 @@ export function TodoApp() {
         ))}
       </div>
 
-      {loading && <div className="loading">Loading todos...</div>}
+      {state.loading && <div className="loading">Loading todos...</div>}
 
       <div className="todo-list">
         {filteredItems.map(item => (
@@ -513,13 +509,13 @@ export class DataProcessingService extends Service<DataProcessingState, DataProc
       progress: 0,
       result: null,
       processedItems: 0,
-      totalItems: items.length
+      totalItems: state.items.length
     })
 
     let result = 0
-    const batchSize = Math.max(1, Math.floor(items.length / 100))
+    const batchSize = Math.max(1, Math.floor(state.items.length / 100))
 
-    for (let i = 0; i < items.length; i++) {
+    for (let i = 0; i < state.items.length; i++) {
       if (this.cancelProcessing) return
 
       const item = items[i]
@@ -538,8 +534,8 @@ export class DataProcessingService extends Service<DataProcessingState, DataProc
       }
 
       // Update progress periodically to keep the UI responsive
-      if (i % batchSize === 0 || i === items.length - 1) {
-        const progress = (i + 1) / items.length
+      if (i % batchSize === 0 || i === state.items.length - 1) {
+        const progress = (i + 1) / state.items.length
         this.setStates({
           progress,
           processedItems: i + 1
@@ -598,12 +594,7 @@ import { useServiceState, useServiceActions } from '@steward/react'
 import { DataProcessingToken } from '../services/DataProcessingService'
 
 export function DataProcessingDemo() {
-  const isProcessing = useServiceState(DataProcessingToken, 'isProcessing')
-  const progress = useServiceState(DataProcessingToken, 'progress')
-  const result = useServiceState(DataProcessingToken, 'result')
-  const processedItems = useServiceState(DataProcessingToken, 'processedItems')
-  const totalItems = useServiceState(DataProcessingToken, 'totalItems')
-
+  const state = useServiceState(DataProcessingToken)
   const actions = useServiceActions(DataProcessingToken)
 
   const startHeavyProcessing = () => {
@@ -628,14 +619,14 @@ export function DataProcessingDemo() {
       <div className="controls">
         <button
           onClick={startHeavyProcessing}
-          disabled={isProcessing}
+          disabled={state.isProcessing}
         >
           Process 1M Items (Prime Count)
         </button>
 
         <button
           onClick={actions.cancelProcessing}
-          disabled={!isProcessing}
+          disabled={!state.isProcessing}
         >
           Cancel
         </button>
@@ -645,24 +636,24 @@ export function DataProcessingDemo() {
         </button>
       </div>
 
-      {isProcessing && (
+      {state.isProcessing && (
         <div className="progress">
           <div className="progress-bar">
             <div
               className="progress-fill"
-              style={{ width: `${progress * 100}%` }}
+              style={{ width: `${state.progress * 100}%` }}
             />
           </div>
           <p>
-            Processing: {formatNumber(processedItems)} / {formatNumber(totalItems)}
-            ({Math.round(progress * 100)}%)
+            Processing: {formatNumber(state.processedItems)} / {formatNumber(state.totalItems)}
+            ({Math.round(state.progress * 100)}%)
           </p>
         </div>
       )}
 
-      {result !== null && (
+      {state.result !== null && (
         <div className="result">
-          <h3>Result: {formatNumber(result)}</h3>
+          <h3>Result: {formatNumber(state.result)}</h3>
           <p>Computation completed in Web Worker!</p>
         </div>
       )}

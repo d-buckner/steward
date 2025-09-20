@@ -3,11 +3,7 @@ import { createSignal, createMemo, createEffect, For, Show, onCleanup } from 'so
 import { ChatToken } from '../services'
 
 export function ChatDemo() {
-  const messages = createServiceState(ChatToken, 'messages')
-  const currentUser = createServiceState(ChatToken, 'currentUser')
-  const isTyping = createServiceState(ChatToken, 'isTyping')
-  const onlineUsers = createServiceState(ChatToken, 'onlineUsers')
-  
+  const state = createServiceState(ChatToken)
   const actions = createServiceActions(ChatToken)
   
   const [messageText, setMessageText] = createSignal('')
@@ -19,7 +15,7 @@ export function ChatDemo() {
   
   // Auto-scroll to bottom when new messages arrive
   createEffect(() => {
-    const messageList = messages()
+    const messageList = state.messages
     if (messageList && messagesContainer) {
       messagesContainer.scrollTop = messagesContainer.scrollHeight
     }
@@ -28,7 +24,7 @@ export function ChatDemo() {
   // Handle typing indicators
   let typingTimer: number | undefined
   const handleTyping = () => {
-    if (!isTyping()) {
+    if (!state.isTyping) {
       actions.startTyping()
     }
     
@@ -62,7 +58,7 @@ export function ChatDemo() {
   
   const changeUsername = () => {
     const newName = usernameInput().trim()
-    if (newName && newName !== currentUser()) {
+    if (newName && newName !== state.currentUser) {
       actions.setUser(newName)
       setShowUserModal(false)
       setUsernameInput('')
@@ -81,7 +77,7 @@ export function ChatDemo() {
     
     if (messageType === 'system') classes.push('system')
     else if (messageType === 'bot') classes.push('bot')
-    else if (author === currentUser()) classes.push('own')
+    else if (author === state.currentUser) classes.push('own')
     else classes.push('other')
     
     return classes.join(' ')
@@ -89,7 +85,7 @@ export function ChatDemo() {
   
   // Computed stats
   const stats = createMemo(() => {
-    const messageList = messages() || []
+    const messageList = state.messages || []
     const userMessages = messageList.filter(m => m.type === 'user')
     const systemMessages = messageList.filter(m => m.type === 'system') 
     const botMessages = messageList.filter(m => m.type === 'bot')
@@ -99,7 +95,7 @@ export function ChatDemo() {
       user: userMessages.length,
       system: systemMessages.length,
       bot: botMessages.length,
-      onlineCount: onlineUsers()?.length || 0
+      onlineCount: state.onlineUsers?.length || 0
     }
   })
 
@@ -114,11 +110,11 @@ export function ChatDemo() {
       <div class="chat-container">
         <div class="chat-header">
           <div class="user-info">
-            <span class="current-user">👤 {currentUser()}</span>
+            <span class="current-user">👤 {state.currentUser}</span>
             <button 
               class="change-user-btn"
               onClick={() => {
-                setUsernameInput(currentUser() || '')
+                setUsernameInput(state.currentUser || '')
                 setShowUserModal(true)
               }}
             >
@@ -140,7 +136,7 @@ export function ChatDemo() {
         </div>
         
         <div class="messages-container" ref={messagesContainer}>
-          <For each={messages()}>
+          <For each={state.messages}>
             {(message) => (
               <div class={getMessageClass(message.type, message.author)}>
                 <div class="message-header">
@@ -152,9 +148,9 @@ export function ChatDemo() {
             )}
           </For>
           
-          <Show when={isTyping()}>
+          <Show when={state.isTyping}>
             <div class="typing-indicator">
-              <span class="typing-text">{currentUser()} is typing</span>
+              <span class="typing-text">{state.currentUser} is typing</span>
               <div class="typing-dots">
                 <span></span>
                 <span></span>
@@ -168,7 +164,7 @@ export function ChatDemo() {
           <input
             ref={messageInput}
             type="text"
-            placeholder={`Message as ${currentUser()}...`}
+            placeholder={`Message as ${state.currentUser}...`}
             value={messageText()}
             onInput={(e) => {
               setMessageText(e.target.value)

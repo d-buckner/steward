@@ -41,12 +41,12 @@ container.register('counter', () => new CounterService())
 
 // 4. Use in components
 function Counter() {
-  const count = createServiceState('counter', 'count')
+  const state = createServiceState('counter')
   const actions = createServiceActions('counter')
 
   return (
     <div>
-      <p>Count: {count()}</p>
+      <p>Count: {state.count}</p>
       <button onClick={actions.increment}>+</button>
     </div>
   )
@@ -66,35 +66,37 @@ function App() {
 
 ### createServiceState
 
-Create a reactive signal from service state that automatically updates when the service state changes.
+Create a reactive proxy from service state that automatically provides fine-grained signals for all properties.
 
 ```tsx
-const signal = createServiceState(serviceToken, stateKey)
+const state = createServiceState(serviceToken)
 ```
 
 **Parameters:**
 - `serviceToken` - The service identifier
-- `stateKey` - The state property to subscribe to
 
-**Returns:** Solid signal accessor function
+**Returns:** Proxy object providing reactive access to all state properties
 
-**Example:**
+**Examples:**
 ```tsx
-const count = createServiceState('counter', 'count')
-const username = createServiceState('auth', 'username')
+const state = createServiceState('counter')
+// Access any property: state.count, state.isActive, etc.
 
-// Use in JSX
-return <p>Current count: {count()}</p>
+// Destructuring support
+const { count, isActive } = createServiceState('counter')
+
+// Use in JSX - each property access creates fine-grained reactivity
+return <p>Count: {state.count}</p> // Only updates when count changes
 
 // Use in effects
 createEffect(() => {
-  console.log('Count changed to:', count())
+  console.log('Count changed to:', state.count)
 })
 ```
 
 ### createServiceActions
 
-Get type-safe action dispatchers for a service. Automatically detects if the service uses messages or direct methods.
+Get type-safe action dispatchers for a service. Service methods are automatically exposed as callable actions.
 
 ```tsx
 const actions = createServiceActions(serviceToken)
@@ -103,20 +105,20 @@ const actions = createServiceActions(serviceToken)
 **Parameters:**
 - `serviceToken` - The service identifier
 
-**Returns:** Object with action methods
+**Returns:** Proxy object with action methods
 
 **Examples:**
 
-For traditional services:
 ```tsx
 const actions = createServiceActions('counter')
-// actions.increment() - calls method directly
-```
+// All public methods become actions: actions.increment(), actions.decrement(), etc.
 
-For message-driven services:
-```tsx
-const actions = createServiceActions('todos')
-// actions.addItem('Buy milk', 1) - converts to message
+// Destructuring support
+const { increment, decrement, reset } = createServiceActions('counter')
+
+// All actions are async and message-driven
+await actions.increment()
+await increment() // Same effect
 ```
 
 ## Components
@@ -141,43 +143,53 @@ SolidJS's fine-grained reactivity means only the specific parts of your UI that 
 
 ```tsx
 function TodoList() {
-  const items = createServiceState('todos', 'items')
-  const filter = createServiceState('todos', 'filter')
-  
-  // Only items that change will re-render
+  const state = createServiceState('todos')
+
+  // Only updates when items array changes
   return (
-    <For each={items()}>
+    <For each={state.items}>
       {(item) => <TodoItem item={item} />}
     </For>
   )
 }
 ```
 
-## Message-driven Services
+## Service Examples
 
-For services using message-driven architecture with expressive APIs:
+All service methods automatically become callable actions:
 
 ```tsx
-import { MessageService, withMessages } from '@d-buckner/steward'
+import { Service } from '@d-buckner/steward'
 
-interface TodoMessages {
-  ADD_ITEM: { text: string; priority: number }
-  TOGGLE_ITEM: { id: string }
-  DELETE_ITEM: { id: string }
+interface TodoState {
+  items: TodoItem[]
+  filter: 'all' | 'active' | 'completed'
 }
 
-@withMessages(['ADD_ITEM', 'TOGGLE_ITEM', 'DELETE_ITEM'], {
-  ADD_ITEM: (text: string, priority: number = 0) => ({ text, priority }),
-  TOGGLE_ITEM: (id: string) => ({ id }),
-  DELETE_ITEM: (id: string) => ({ id })
-})
-class TodoService extends MessageService<TodoState, TodoMessages> {
-  // Implementation
+class TodoService extends Service<TodoState> {
+  constructor() {
+    super({ items: [], filter: 'all' })
+  }
+
+  addItem(text: string, priority: number = 0) {
+    const newItem = { id: generateId(), text, priority, completed: false }
+    this.setState('items', [...this.state.items, newItem])
+  }
+
+  toggleItem(id: string) {
+    this.setState('items', this.state.items.map(item =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ))
+  }
+
+  deleteItem(id: string) {
+    this.setState('items', this.state.items.filter(item => item.id !== id))
+  }
 }
 
 // Usage in components
 function TodoApp() {
-  const items = createServiceState('todos', 'items')
+  const state = createServiceState('todos')
   const actions = createServiceActions('todos')
 
   return (
@@ -185,8 +197,8 @@ function TodoApp() {
       <button onClick={() => actions.addItem('New task', 2)}>
         Add High Priority Task
       </button>
-      
-      <For each={items()}>
+
+      <For each={state.items}>
         {(item) => (
           <div>
             <span onClick={() => actions.toggleItem(item.id)}>
@@ -211,37 +223,34 @@ Combine service state with SolidJS computations:
 
 ```tsx
 function ShoppingCart() {
-  const items = createServiceState('cart', 'items')
-  const discountRate = createServiceState('cart', 'discountRate')
-  
+  const state = createServiceState('cart')
+
   const total = createMemo(() => {
-    const subtotal = items().reduce((sum, item) => sum + item.price * item.quantity, 0)
-    return subtotal * (1 - discountRate())
+    const subtotal = state.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    return subtotal * (1 - state.discountRate)
   })
-  
+
   return <p>Total: ${total().toFixed(2)}</p>
 }
 ```
 
 ### Conditional Subscriptions
 
-Only subscribe when needed:
+Fine-grained reactivity only subscribes to accessed properties:
 
 ```tsx
 function UserProfile() {
   const [showDetails, setShowDetails] = createSignal(false)
-  
-  // Only subscribe to user details when showing them
-  const userDetails = createServiceState('user', 'details')
-  
+  const state = createServiceState('user')
+
   return (
     <div>
       <button onClick={() => setShowDetails(!showDetails())}>
         Toggle Details
       </button>
-      
+
       <Show when={showDetails()}>
-        <div>{userDetails()?.bio}</div>
+        <div>{state.details?.bio}</div> {/* Only subscribes when accessed */}
       </Show>
     </div>
   )
@@ -253,24 +262,29 @@ function UserProfile() {
 Full TypeScript support with automatic type inference:
 
 ```typescript
-// State types are inferred from service
-const count: Accessor<number> = createServiceState('counter', 'count')
+// State proxy provides full type safety
+const state = createServiceState(CounterToken) // Typed as CounterState proxy
+const count: number = state.count // Property access is fully typed
 
-// Action types are inferred from service methods  
+// Destructuring maintains types
+const { count, isActive }: { count: number; isActive: boolean } = createServiceState(CounterToken)
+
+// Action types are inferred from service methods
 const actions: {
   increment: () => Promise<void>
   decrement: () => Promise<void>
   reset: () => Promise<void>
-} = createServiceActions('counter')
+} = createServiceActions(CounterToken)
 ```
 
 ## Best Practices
 
-1. **Leverage fine-grained reactivity** - SolidJS only updates what actually changed
-2. **Use derived state** - Combine service state with `createMemo` for computed values
-3. **Minimize signal calls** - Access signals sparingly in render functions
-4. **Type your services** - Register service types for full TypeScript support
-5. **Use Show/For components** - Take advantage of SolidJS control flow
+1. **Leverage fine-grained reactivity** - Each property access creates precise subscriptions
+2. **Use proxy-based state access** - Access only the properties you need for optimal performance
+3. **Leverage destructuring** - Extract specific properties for cleaner component code
+4. **Use derived state** - Combine service state with `createMemo` for computed values
+5. **Use service tokens** - Create typed tokens for full TypeScript support
+6. **Use Show/For components** - Take advantage of SolidJS control flow
 
 ## Examples
 

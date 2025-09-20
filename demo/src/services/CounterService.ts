@@ -1,4 +1,4 @@
-import { Service, withMessages, Message, ServiceState, ServiceMessages } from '@d-buckner/steward'
+import { Service, ServiceState } from '@d-buckner/steward'
 
 interface CounterState extends ServiceState {
   count: number
@@ -8,34 +8,7 @@ interface CounterState extends ServiceState {
   history: number[]
 }
 
-interface CounterMessages extends ServiceMessages {
-  INCREMENT: {}
-  DECREMENT: {}
-  SET_STEP: { step: number }
-  SET_NAME: { name: string }
-  TOGGLE: {}
-  RESET: {}
-  UNDO: {}
-}
-
-@withMessages<CounterMessages>([
-  'INCREMENT',
-  'DECREMENT', 
-  'SET_STEP',
-  'SET_NAME',
-  'TOGGLE',
-  'RESET',
-  'UNDO'
-], {
-  INCREMENT: () => ({}),
-  DECREMENT: () => ({}),
-  SET_STEP: (step: number) => ({ step }),
-  SET_NAME: (name: string) => ({ name }),
-  TOGGLE: () => ({}),
-  RESET: () => ({}),
-  UNDO: () => ({})
-})
-export class CounterService extends Service<CounterState, CounterMessages> {
+export class CounterService extends Service<CounterState> {
   constructor() {
     super({
       count: 0,
@@ -46,63 +19,48 @@ export class CounterService extends Service<CounterState, CounterMessages> {
     })
   }
 
-  async handle<K extends keyof CounterMessages>(
-    message: Message<CounterMessages, K>
-  ): Promise<void> {
-    switch (message.type) {
-      case 'INCREMENT': {
-        if (!this.state.isActive) return
-        
-        const newCount = this.state.count + this.state.step
-        this.setState('count', newCount)
-        this.setState('history', [...this.state.history, newCount])
-        break
-      }
+  increment() {
+    if (!this.state.isActive) return
 
-      case 'DECREMENT': {
-        if (!this.state.isActive) return
-        
-        const newCount = this.state.count - this.state.step
-        this.setState('count', newCount)
-        this.setState('history', [...this.state.history, newCount])
-        break
-      }
+    const newCount = this.state.count + this.state.step
+    this.setState('count', newCount)
+    this.setState('history', [...this.state.history, newCount])
+  }
 
-      case 'SET_STEP': {
-        const { step } = message.payload as CounterMessages['SET_STEP']
-        this.setState('step', Math.max(1, Math.min(10, step)))
-        break
-      }
+  decrement() {
+    if (!this.state.isActive) return
 
-      case 'SET_NAME': {
-        const { name } = message.payload as CounterMessages['SET_NAME']
-        this.setState('name', name)
-        break
-      }
+    const newCount = this.state.count - this.state.step
+    this.setState('count', newCount)
+    this.setState('history', [...this.state.history, newCount])
+  }
 
-      case 'TOGGLE': {
-        this.setState('isActive', !this.state.isActive)
-        break
-      }
+  setStep(step: number) {
+    this.setState('step', Math.max(1, Math.min(10, step)))
+  }
 
-      case 'RESET': {
-        this.setState('count', 0)
-        this.setState('history', [0])
-        break
-      }
+  setName(name: string) {
+    this.setState('name', name)
+  }
 
-      case 'UNDO': {
-        if (this.state.history.length <= 1) return
-        
-        const newHistory = [...this.state.history]
-        newHistory.pop() // Remove current
-        const previousValue = newHistory[newHistory.length - 1]
-        
-        this.setState('count', previousValue)
-        this.setState('history', newHistory)
-        break
-      }
-    }
+  toggle() {
+    this.setState('isActive', !this.state.isActive)
+  }
+
+  reset() {
+    this.setState('count', 0)
+    this.setState('history', [0])
+  }
+
+  undo() {
+    if (this.state.history.length <= 1) return
+
+    const newHistory = [...this.state.history]
+    newHistory.pop() // Remove current
+    const previousValue = newHistory[newHistory.length - 1]
+
+    this.setState('count', previousValue)
+    this.setState('history', newHistory)
   }
 
   // Query methods remain synchronous for computed properties
