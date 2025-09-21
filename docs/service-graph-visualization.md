@@ -232,4 +232,214 @@ interface GraphVisualizationConfig {
 - **Grafana Integration**: Embed graphs in monitoring dashboards
 - **CI/CD Integration**: Generate service dependency reports
 
+## Production Bundle Exclusion
+
+### Development-Only Integration
+
+#### Environment-Gated Initialization
+```typescript
+// ServiceContainer.ts
+export class ServiceContainer {
+  private graphRegistry?: ServiceGraphRegistry
+
+  constructor() {
+    // Only initialize visualization in development
+    if (process.env.NODE_ENV === 'development' && process.env.STEWARD_DEVTOOLS !== 'false') {
+      this.initializeDevtools()
+    }
+  }
+
+  private async initializeDevtools(): Promise<void> {
+    try {
+      // Dynamic import prevents bundling in production
+      const { ServiceGraphRegistry } = await import('./devtools/ServiceGraphRegistry')
+      this.graphRegistry = new ServiceGraphRegistry()
+    } catch (error) {
+      // Gracefully handle missing devtools in production builds
+      console.warn('Steward devtools not available')
+    }
+  }
+
+  resolve<T extends TypedServiceToken<any>>(token: T): ServiceFromToken<T> {
+    const instance = /* ... existing resolution logic ... */
+
+    // Only register with graph in development
+    this.graphRegistry?.registerService(token, instance)
+
+    return instance
+  }
+}
+```
+
+#### Conditional WorkerProxy Instrumentation
+```typescript
+// WorkerProxy.ts
+export class WorkerProxy {
+  private messageTracker?: MessageFlowTracker
+
+  constructor(serviceClass: any, initialState: TState, options: WorkerOptions) {
+    /* ... existing constructor logic ... */
+
+    // Only instrument message tracking in development
+    if (process.env.NODE_ENV === 'development') {
+      this.initializeMessageTracking()
+    }
+  }
+
+  private async initializeMessageTracking(): Promise<void> {
+    if (typeof window !== 'undefined') {
+      try {
+        const { MessageFlowTracker } = await import('./devtools/MessageFlowTracker')
+        this.messageTracker = new MessageFlowTracker(this.serviceClass.name)
+      } catch {
+        // Devtools not available
+      }
+    }
+  }
+
+  async send<K extends keyof Actions>(type: K, payload: Actions[K], correlationId?: string): Promise<void> {
+    // Track message in development only
+    this.messageTracker?.trackOutgoingMessage({ type, payload, correlationId })
+
+    /* ... existing send logic ... */
+  }
+}
+```
+
+### Build System Integration
+
+#### Vite Configuration
+```typescript
+// vite.config.ts
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      external: (id) => {
+        // Exclude devtools in production builds
+        if (process.env.NODE_ENV === 'production' && id.includes('/devtools/')) {
+          return true
+        }
+        return false
+      }
+    }
+  },
+  define: {
+    // Ensure devtools code is tree-shaken in production
+    'process.env.STEWARD_DEVTOOLS': JSON.stringify(process.env.NODE_ENV === 'development')
+  }
+})
+```
+
+#### Webpack Configuration
+```javascript
+// webpack.config.js
+module.exports = {
+  resolve: {
+    alias: process.env.NODE_ENV === 'production' ? {
+      // Replace devtools with no-op implementations in production
+      './devtools/ServiceGraphRegistry': path.resolve(__dirname, 'src/devtools/noop.ts'),
+      './devtools/MessageFlowTracker': path.resolve(__dirname, 'src/devtools/noop.ts')
+    } : {}
+  },
+  plugins: [
+    new webpack.DefinePlugin({
+      'process.env.STEWARD_DEVTOOLS': JSON.stringify(process.env.NODE_ENV === 'development')
+    })
+  ]
+}
+```
+
+### File Structure for Bundle Separation
+
+```
+src/
+├── core/
+│   ├── ServiceContainer.ts        # Core with conditional devtools
+│   └── WorkerProxy.ts            # Core with conditional tracking
+├── devtools/                     # Separate devtools directory
+│   ├── ServiceGraphRegistry.ts   # Development-only
+│   ├── MessageFlowTracker.ts     # Development-only
+│   ├── GraphVisualizer.ts        # Development-only
+│   ├── DebugControls.ts          # Development-only
+│   └── noop.ts                   # Production replacements
+└── types/
+    └── devtools.ts               # Type definitions only
+```
+
+#### No-op Implementations
+```typescript
+// src/devtools/noop.ts
+export class ServiceGraphRegistry {
+  registerService(): void {}
+  trackMessage(): void {}
+  dispose(): void {}
+}
+
+export class MessageFlowTracker {
+  trackOutgoingMessage(): void {}
+  trackIncomingMessage(): void {}
+  dispose(): void {}
+}
+```
+
+### Package.json Scripts
+```json
+{
+  "scripts": {
+    "build": "NODE_ENV=production vite build",
+    "build:dev": "NODE_ENV=development vite build",
+    "dev": "NODE_ENV=development STEWARD_DEVTOOLS=true vite dev"
+  }
+}
+```
+
+### TypeScript Configuration
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "paths": {
+      "@steward/devtools/*": ["./src/devtools/*"]
+    }
+  }
+}
+
+// tsconfig.prod.json (for production builds)
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@steward/devtools/*": ["./src/devtools/noop.ts"]
+    }
+  }
+}
+```
+
+### Runtime Detection Pattern
+```typescript
+// Utility for runtime devtools detection
+export const isDevtoolsEnabled = (): boolean => {
+  return process.env.NODE_ENV === 'development' &&
+         process.env.STEWARD_DEVTOOLS !== 'false' &&
+         typeof window !== 'undefined'
+}
+
+// Usage throughout codebase
+if (isDevtoolsEnabled()) {
+  // Only execute devtools code in development
+}
+```
+
+### Bundle Analysis Verification
+```bash
+# Analyze production bundle to verify devtools exclusion
+npm run build
+npx vite-bundle-analyzer dist
+
+# Or with webpack-bundle-analyzer
+npx webpack-bundle-analyzer dist/steward.js
+```
+
+This approach ensures zero production overhead while maintaining full development capabilities through dynamic imports, environment gating, and build-time exclusion strategies.
+
 This visualization system transforms the abstract concept of message-driven services into a tangible, interactive experience that aids both development and production debugging while providing an impressive demonstration of the Steward architecture's capabilities.

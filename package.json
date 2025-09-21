@@ -21,11 +21,6 @@
       "import": "./src/build/vite-plugin.js",
       "require": "./src/build/vite-plugin.js"
     },
-    "./worker/worker-runtime": {
-      "types": "./dist/worker/worker-runtime.d.ts",
-      "import": "./src/worker/worker-runtime.ts",
-      "require": "./src/worker/worker-runtime.ts"
-    },
     "./worker/worker-registry": {
       "types": "./dist/worker/worker-registry.d.ts",
       "import": "./src/worker/worker-registry.ts",

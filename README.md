@@ -1,49 +1,25 @@
 # Steward
 
-When you're building a React application, things start simple enough. A few components, some local state, maybe a context or two. But as your app grows, you start running into familiar patterns: components that need to share state become tightly coupled, performance bottlenecks require moving work to Web Workers (which means rewriting your logic), and what started as clean, predictable code becomes increasingly complex to maintain.
+Steward is a frontend framework that makes modeling complex business logic simple by organizing your application into services - isolated processes that manage their own state and communicate through messages.
 
-What if we could learn from systems that have already solved these problems?
+This service-based approach helps you build applications that naturally reflect your business domains while solving common frontend scaling problems:
 
-The Erlang BEAM virtual machine has been running fault-tolerant, distributed systems for decades. Its actor model - where isolated processes communicate purely through messages - has proven itself in everything from WhatsApp's messaging infrastructure to Discord's real-time chat. But these patterns have remained largely confined to backend systems.
+- **Utilize multiple threads** without rewriting service code
+- **Services run anywhere** - locally, in workers, or remotely with identical APIs
+- **Isolated failures** - service crashes don't affect other parts of your app
+- **Fine-grained reactivity** - state updates only trigger necessary re-renders
 
-Steward brings these battle-tested concepts to frontend development, creating a reactive service architecture where your application is built from isolated, message-driven services that can transparently scale from local execution to Web Workers to distributed systems.
+The architecture is inspired by Erlang's actor model, where isolated processes communicate through messages. This pattern has proven effective in systems like WhatsApp's messaging infrastructure and Discord's real-time chat.
 
-## The Problem We're Solving
+Steward brings these patterns to frontend development, letting you start simple and add complexity only when needed.
 
-Consider a typical React application as it grows:
+## How Steward Works
 
-```tsx
-// This starts simple...
-function CodeEditor() {
-  const [content, setContent] = useState('')
-  const [diagnostics, setDiagnostics] = useState([])
-  const [isLinting, setIsLinting] = useState(false)
+Steward organizes your application logic into services that naturally model your business domains:
 
-  // But quickly becomes this...
-  const [syntaxTree, setSyntaxTree] = useState(null)
-  const [suggestions, setSuggestions] = useState([])
-  const [highlights, setHighlights] = useState([])
-  const [symbols, setSymbols] = useState([])
-  const [completionCache, setCompletionCache] = useState({})
-  // ... and keeps growing
-}
-```
-
-Now imagine you need that syntax parsing and linting to be really fast - maybe you're dealing with large files or complex analysis. You'd need to move the work to a Web Worker, which means:
-
-1. Rewriting your logic to work with postMessage
-2. Serializing/deserializing data across the worker boundary
-3. Managing state synchronization between main thread and worker
-4. Handling errors and cleanup across process boundaries
-
-What started as a simple state update becomes a distributed systems problem.
-
-## The Steward Approach
-
-Instead of fighting against these constraints, we embrace them. Every piece of functionality becomes a service - a lightweight, isolated process that manages its own state and communicates purely through messages.
 
 ```typescript
-// Build a code editor with multiple coordinating services
+// Each service models a specific business domain
 class DocumentService extends Service<DocumentState> {
   constructor() {
     super({
@@ -60,7 +36,7 @@ class DocumentService extends Service<DocumentState> {
   }
 
   parseDocument(content: string) {
-    // Syntax highlighting and error detection
+    // Rich document analysis
     const syntaxTree = this.buildSyntaxTree(content)
     const diagnostics = this.runLinting(content)
     const highlights = this.generateHighlights(syntaxTree)
@@ -77,7 +53,7 @@ class AutocompleteService extends Service<AutocompleteState> {
   async generateSuggestions(position: number) {
     this.setState('isLoading', true)
 
-    // ML-powered intelligent completions
+    // AI-powered suggestions based on document context
     const context = this.documentService.state.content
     const suggestions = await this.runInference(context, position)
 
@@ -86,9 +62,10 @@ class AutocompleteService extends Service<AutocompleteState> {
 }
 ```
 
-Your React components interact with services through a clean, reactive API:
+Your UI components interact with services through a clean, reactive API:
 
 ```tsx
+// React example
 function CodeEditor() {
   const docState = useServiceState(DocumentToken)
   const autocompleteState = useServiceState(AutocompleteToken)
@@ -110,24 +87,47 @@ function CodeEditor() {
     </div>
   )
 }
+
+// SolidJS example
+function CodeEditor() {
+  const docState = createServiceState(DocumentToken)
+  const autocompleteState = createServiceState(AutocompleteToken)
+  const docActions = createServiceActions(DocumentToken)
+
+  return (
+    <div class="editor">
+      <CodeMirror
+        value={docState.content}
+        onChange={docActions.updateContent}
+        highlights={docState.highlights}
+        diagnostics={docState.diagnostics}
+      />
+
+      <AutocompleteSuggestions
+        suggestions={autocompleteState.suggestions}
+        loading={autocompleteState.isLoading}
+      />
+    </div>
+  )
+}
 ```
 
-But here's where it gets interesting. When your files get large and parsing starts blocking the UI, you don't rewrite anything:
+When you need better performance, simply add a decorator to move services to their own threads:
 
 ```typescript
-// Just add a decorator - same code, now runs in a Web Worker
+// Add a decorator to run in dedicated threads
 @withWorker('DocumentProcessor')
 class DocumentService extends Service<DocumentState> {
-  // Exact same parsing logic - now non-blocking
+  // Same parsing logic - now non-blocking
 }
 
 @withWorker('MLInference')
 class AutocompleteService extends Service<AutocompleteState> {
-  // Heavy ML inference - now in dedicated worker
+  // AI inference in dedicated thread
 }
 ```
 
-Your React components don't change. Your service logic doesn't change. The framework handles all the message passing, state synchronization, and error handling transparently.
+Your UI components stay the same. Your service logic stays the same. Steward handles all the threading, state synchronization, and communication automatically.
 
 ## Location Transparency
 
@@ -196,7 +196,31 @@ class DocumentService extends Service<DocumentState> {
 ## Quick Start
 
 ```bash
-npm install @d-buckner/steward @steward/react
+npm install @d-buckner/steward
+```
+
+For React:
+```bash
+npm install @steward/react
+```
+
+For SolidJS:
+```bash
+npm install @steward/solid
+```
+
+Add the Vite plugin to your `vite.config.ts`:
+
+```typescript
+import { defineConfig } from 'vite'
+import { stewardWorkerPlugin } from '@d-buckner/steward/vite'
+
+export default defineConfig({
+  plugins: [
+    stewardWorkerPlugin(),
+    // your other plugins
+  ],
+})
 ```
 
 ```typescript
@@ -260,22 +284,29 @@ function CodeEditor() {
     </div>
   )
 }
+```
 
-// Or use destructuring for cleaner code
-function CodeEditorWithDestructuring() {
-  const { content, diagnostics, isLinting } = useServiceState(EditorToken)
-  const { updateContent } = useServiceActions(EditorToken)
+```tsx
+// 2. Use in SolidJS
+import { createServiceState, createServiceActions } from '@steward/solid'
+
+function CodeEditor() {
+  const state = createServiceState(EditorToken)
+  const actions = createServiceActions(EditorToken)
 
   return (
-    <div className="editor">
+    <div class="editor">
       <textarea
-        value={content}
-        onChange={(e) => updateContent(e.target.value)}
+        value={state.content}
+        onInput={(e) => actions.updateContent(e.currentTarget.value)}
         placeholder="Start typing code..."
       />
 
-      {isLinting && <div className="spinner">Linting...</div>}
-      <DiagnosticsPanel diagnostics={diagnostics} />
+      <Show when={state.isLinting}>
+        <div class="spinner">Linting...</div>
+      </Show>
+
+      <DiagnosticsPanel diagnostics={state.diagnostics} />
     </div>
   )
 }
@@ -356,18 +387,19 @@ This makes Steward perfect for Node.js backends, CLI tools, testing environments
 
 | Package | Description | Status |
 |---------|-------------|--------|
-| `@d-buckner/steward` | Core service architecture | ✅ Production |
+| `@d-buckner/steward` | Core service architecture with Web Worker support | ✅ Production |
 | `@steward/react` | React hooks and providers | ✅ Production |
 | `@steward/solid` | SolidJS primitives | ✅ Production |
-| `@steward/collaboration` | CRDT-based collaboration | 🚧 Alpha |
+| `@d-buckner/steward-collaboration` | CRDT-based collaboration with Automerge | 🚧 Alpha |
 
 ## Documentation
 
 - [**Getting Started**](./docs/getting-started.md) - Build your first Steward application
 - [**Architecture Guide**](./docs/architecture.md) - Core concepts and patterns
 - [**API Reference**](./docs/api.md) - Complete API documentation
-- [**React Integration**](./packages/react/README.md) - React-specific features
-- [**SolidJS Integration**](./packages/solid/README.md) - SolidJS-specific features
+- [**React Integration**](./packages/react/README.md) - React hooks and patterns
+- [**SolidJS Integration**](./packages/solid/README.md) - SolidJS primitives and patterns
+- [**Worker Guide**](./docs/workers.md) - Using services in Web Workers
 
 ## What's Next
 

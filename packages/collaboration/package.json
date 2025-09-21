@@ -1,5 +1,5 @@
 {
-  "name": "@steward/collaboration",
+  "name": "@d-buckner/steward-collaboration",
   "version": "0.1.0",
   "description": "Collaborative features for Steward - CRDTs, real-time sync, and presence awareness",
   "main": "dist/index.js",

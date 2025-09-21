@@ -1,9 +1,32 @@
 import { ServiceContainer } from '@d-buckner/steward'
+import {
+  CounterService,
+  TodoService,
+  ChatService,
+  DataProcessingService,
+  CounterToken,
+  TodoToken,
+  ChatToken,
+  DataProcessingToken
+} from '../services'
 
 /**
- * Demo ServiceContainer - just exports the framework's standard ServiceContainer
- * Worker services are handled automatically by the framework via @withWorker decorator
+ * Demo ServiceContainer - shows proper pattern for consumer applications
+ *
+ * In a real app, this would be where you configure all your services in one place.
+ * The container automatically handles worker services via @withWorker decorator detection.
  */
 export class DemoServiceContainer extends ServiceContainer {
-  // No custom logic needed - framework handles everything!
+  constructor() {
+    super()
+    this.registerDemoServices()
+  }
+
+  private registerDemoServices(): void {
+    // Register all demo services with their tokens
+    this.register(CounterToken, CounterService)
+    this.register(TodoToken, TodoService)
+    this.register(ChatToken, ChatService)
+    this.register(DataProcessingToken, DataProcessingService) // ← Worker service handled automatically!
+  }
 }

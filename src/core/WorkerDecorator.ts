@@ -57,7 +57,6 @@ export function withWorker(nameOrOptions: string | WorkerOptions) {
       options
     })
 
-    console.log(`[withWorker] Registered worker service: ${target.name}`)
 
     return target
   }

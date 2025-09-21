@@ -1,7 +1,6 @@
 import { ServiceProvider } from '@d-buckner/steward-solid'
 import { createSignal, For, Show } from 'solid-js'
 
-import { CounterService, TodoService, ChatService, DataProcessingService, CounterToken, TodoToken, ChatToken, DataProcessingToken } from './services'
 import { CounterDemo } from './components/CounterDemo'
 import { TodoDemo } from './components/TodoDemo'
 import { ChatDemo } from './components/ChatDemo'
@@ -9,23 +8,10 @@ import { DataProcessingDemo } from './components/DataProcessingDemo'
 import { DemoServiceContainer } from './core/DemoServiceContainer'
 
 import './styles.css'
-import './examples/headless-example'
 
-// Create container and register services
+// Create container - services are automatically registered in constructor
 const container = new DemoServiceContainer()
-container.register(CounterToken, CounterService)
-container.register(TodoToken, TodoService)
-container.register(ChatToken, ChatService)
-container.register(DataProcessingToken, DataProcessingService)
 
-console.log('[App] All services registered')
-console.log('[App] DataProcessingService constructor:', DataProcessingService)
-console.log('[App] DataProcessingToken:', DataProcessingToken)
-
-// Expose debugging information globally
-;(window as any).demoContainer = container
-;(window as any).DataProcessingToken = DataProcessingToken
-;(window as any).DataProcessingService = DataProcessingService
 
 type DemoTab = 'counter' | 'todos' | 'chat' | 'worker'
 
@@ -57,7 +43,7 @@ const demos = [
 ]
 
 function App() {
-  const [activeTab, setActiveTab] = createSignal<DemoTab>('counter')
+  const [activeTab, setActiveTab] = createSignal<DemoTab>('worker')
   const [showInfo, setShowInfo] = createSignal(false)
 
   const renderDemo = () => {

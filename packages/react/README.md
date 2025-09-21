@@ -5,18 +5,22 @@ React hooks and providers for [Steward](https://github.com/d-buckner/steward) se
 ## Installation
 
 ```bash
-npm install @d-buckner/steward @d-buckner/steward-react
+npm install @d-buckner/steward @steward/react
 ```
 
 ## Quick Start
 
 ```tsx
 import React from 'react'
-import { ServiceContainer } from '@d-buckner/steward'
-import { ServiceProvider, useServiceState, useServiceActions } from '@d-buckner/steward-react'
+import { Service, ServiceContainer, createServiceToken } from '@d-buckner/steward'
+import { ServiceProvider, useServiceState, useServiceActions } from '@steward/react'
 
 // 1. Create your service
-class CounterService extends Service<{ count: number }> {
+interface CounterState {
+  count: number
+}
+
+class CounterService extends Service<CounterState> {
   constructor() {
     super({ count: 0 })
   }
@@ -27,23 +31,17 @@ class CounterService extends Service<{ count: number }> {
   }
 }
 
-// 2. Register service types
-declare module '@d-buckner/steward' {
-  namespace ServiceToken {
-    interface Registry {
-      counter: CounterService
-    }
-  }
-}
+// 2. Create service token
+export const CounterToken = createServiceToken<CounterService>('counter')
 
 // 3. Setup container
 const container = new ServiceContainer()
-container.register('counter', () => new CounterService())
+container.register(CounterToken, CounterService)
 
 // 4. Use in components
 function Counter() {
-  const state = useServiceState('counter')
-  const actions = useServiceActions('counter')
+  const state = useServiceState(CounterToken)
+  const actions = useServiceActions(CounterToken)
 
   return (
     <div>

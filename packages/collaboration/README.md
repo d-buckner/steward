@@ -1,4 +1,4 @@
-# @steward/collaboration
+# @d-buckner/steward-collaboration
 
 Collaborative features for Steward - CRDTs, real-time synchronization, and presence awareness.
 
@@ -12,13 +12,13 @@ Collaborative features for Steward - CRDTs, real-time synchronization, and prese
 ## Installation
 
 ```bash
-npm install @steward/collaboration
+npm install @d-buckner/steward-collaboration
 ```
 
 ## Quick Start
 
 ```typescript
-import { CRDTService } from '@steward/collaboration'
+import { CRDTService } from '@d-buckner/steward-collaboration'
 
 interface CollaborativeState {
   document: string

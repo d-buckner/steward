@@ -17,7 +17,13 @@ export default defineConfig({
       formats: ['es', 'cjs']
     },
     rollupOptions: {
-      external: ['@automerge/automerge', 'fs', 'path', 'vite', 'glob'],
+      external: [
+        '@automerge/automerge',
+        'fs',
+        'path',
+        'vite',
+        'glob',
+      ],
       output: {
         globals: {
           '@automerge/automerge': 'Automerge'

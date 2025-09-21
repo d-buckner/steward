@@ -6,6 +6,7 @@ import {
   generateMessageId
 } from './Messages'
 import { ServiceState, ServiceActions } from './ServiceTypes'
+import { getWorkerOptions } from './WorkerDecorator'
 
 /**
  * Message-driven service with reactive state management
@@ -29,6 +30,13 @@ export class Service<
   }>()
   private messageRouter: ((message: Message<any>) => Promise<void> | void) | null = null
 
+  // Worker communication properties
+  private worker?: Worker
+  private isInWorker: boolean
+  private isWorkerService: boolean
+  private resolveInit?: () => void
+  private rejectInit?: (error: Error) => void
+
   /**
    * Strongly typed reactive state proxy
    * Access state properties directly: service.state.count
@@ -37,6 +45,13 @@ export class Service<
 
   constructor(initialState: TState) {
     this._state = { ...initialState }
+
+    // Detect execution context
+    this.isInWorker = typeof (globalThis as any).WorkerGlobalScope !== 'undefined' &&
+                      typeof (globalThis as any).importScripts === 'function'
+    this.isWorkerService = !!(this.constructor as any).__isWorkerService
+
+
 
     // Create reactive state proxy
     this.state = new Proxy(this._state, {
@@ -51,13 +66,14 @@ export class Service<
       }
     }) as TState
 
-    // Emit initial state for all keys
-    Object.entries(initialState).forEach(([key, value]) => {
-      this.eventBus.emit(key as keyof TState, value as TState[keyof TState])
-    })
-
-    // Initialize message router with automatic method detection
-    this.messageRouter = this.createAutoMessageRouter()
+    // Set up based on context
+    if (this.isWorkerService && !this.isInWorker) {
+      // Main thread: set up worker communication
+      this.setupWorkerBridge()
+    } else {
+      // Worker thread OR normal service: run locally
+      this.setupLocal(initialState)
+    }
   }
 
   /**
@@ -121,16 +137,38 @@ export class Service<
    */
   protected setState<K extends keyof TState>(key: K, value: TState[K]): void {
     this._state[key] = value
-    this.eventBus.emit(key, value)
+
+    if (this.isInWorker) {
+      // In worker: send state change to main thread via postMessage
+      self.postMessage({
+        type: 'STATE_CHANGE',
+        key,
+        value
+      })
+    } else {
+      // In main thread: emit locally to eventBus
+      this.eventBus.emit(key, value)
+    }
   }
-  
+
   /**
    * Set multiple state properties and emit events
    */
   protected setStates(updates: Partial<TState>): void {
     Object.entries(updates).forEach(([key, value]) => {
       this._state[key as keyof TState] = value
-      this.eventBus.emit(key as keyof TState, value)
+
+      if (this.isInWorker) {
+        // In worker: send state change to main thread via postMessage
+        self.postMessage({
+          type: 'STATE_CHANGE',
+          key,
+          value
+        })
+      } else {
+        // In main thread: emit locally to eventBus
+        this.eventBus.emit(key as keyof TState, value)
+      }
     })
   }
 
@@ -154,6 +192,20 @@ export class Service<
     payload: Actions[K],
     correlationId?: string
   ): void {
+    if (this.isWorkerService && !this.isInWorker && this.worker) {
+      // Main thread of worker service: forward to worker
+      const id = correlationId || generateMessageId()
+
+      this.worker.postMessage({
+        type: 'SERVICE_MESSAGE',
+        id,
+        messageType: type,
+        payload: Array.isArray(payload) ? payload : [payload]
+      })
+      return
+    }
+
+    // Local execution (worker thread or normal service)
     const message = createMessage<Actions, K>(type, payload, correlationId)
 
     // Store in history for debugging
@@ -246,11 +298,143 @@ export class Service<
   }
   
   /**
+   * Set up service for local execution (worker thread or normal service)
+   */
+  private setupLocal(initialState: TState): void {
+    // Emit initial state for all keys
+    Object.entries(initialState).forEach(([key, value]) => {
+      this.eventBus.emit(key as keyof TState, value as TState[keyof TState])
+    })
+
+    // Initialize message router with automatic method detection
+    this.messageRouter = this.createAutoMessageRouter()
+
+    // If in worker, listen for main thread messages
+    if (this.isInWorker) {
+      this.setupWorkerMessageHandling()
+    }
+  }
+
+  /**
+   * Set up worker bridge for main thread
+   */
+  private setupWorkerBridge(): void {
+    const workerOptions = getWorkerOptions(this.constructor)
+    const workerName = workerOptions.name
+
+    if (!workerName) {
+      throw new Error(`Service '${this.constructor.name}' is decorated with @withWorker but missing worker name`)
+    }
+
+    // Derive worker URL from decorator name
+    const workerUrl = `/dist/workers/${workerName}.worker.js`
+
+    // Create worker
+    this.worker = new Worker(workerUrl, { type: 'module' })
+
+    // Set up worker communication
+    new Promise<void>((resolve, reject) => {
+      this.resolveInit = resolve
+      this.rejectInit = reject
+    })
+
+    this.worker.onmessage = this.handleWorkerMessage.bind(this)
+    this.worker.onerror = this.handleWorkerError.bind(this)
+
+    // Initialize service in worker
+    this.worker.postMessage({
+      type: 'INIT_SERVICE',
+      serviceName: this.constructor.name,
+      initialState: this._state
+    })
+  }
+
+  /**
+   * Set up message handling in worker thread
+   */
+  private setupWorkerMessageHandling(): void {
+    self.onmessage = async (event: MessageEvent) => {
+      const { type, id, messageType, payload } = event.data
+
+      try {
+        if (type === 'INIT_SERVICE') {
+          // Service already initialized, just confirm
+          self.postMessage({
+            type: 'INIT_SERVICE',
+            id,
+            success: true
+          })
+        } else if (type === 'SERVICE_MESSAGE') {
+          // Handle method call
+          const result = await this.handle({ type: messageType, payload, id: generateMessageId() } as any)
+
+          self.postMessage({
+            type: 'MESSAGE_RESPONSE',
+            id,
+            result
+          })
+        }
+      } catch (error) {
+        self.postMessage({
+          type: 'MESSAGE_RESPONSE',
+          id,
+          error: (error as Error).message
+        })
+      }
+    }
+  }
+
+  /**
+   * Handle messages from worker
+   */
+  private handleWorkerMessage(event: MessageEvent): void {
+    const { type, id, key, value, result, error } = event.data
+
+    switch (type) {
+      case 'STATE_CHANGE':
+        // Forward state change to local event bus
+        this.eventBus.emit(key as keyof TState, value)
+        break
+
+      case 'MESSAGE_RESPONSE':
+        // Handle method response
+        if (id && this.pendingRequests.has(id)) {
+          const pending = this.pendingRequests.get(id)!
+          clearTimeout(pending.timeout)
+          this.pendingRequests.delete(id)
+
+          if (error) {
+            pending.reject(new Error(error))
+          } else {
+            pending.resolve(result)
+          }
+        }
+        break
+
+      case 'INIT_SERVICE':
+        if (event.data.success) {
+          this.resolveInit?.()
+        } else {
+          this.rejectInit?.(new Error(event.data.error || 'Worker initialization failed'))
+        }
+        break
+    }
+  }
+
+  /**
+   * Handle worker errors
+   */
+  private handleWorkerError(error: ErrorEvent): void {
+    console.error('[Service] Worker error:', error)
+    this.rejectInit?.(new Error(`Worker error: ${error.message}`))
+  }
+
+  /**
    * Clear state and events for testing
    */
   public clear(): void {
     this.eventBus.clear()
-    
+
     // Reject all pending requests
     for (const [, pending] of this.pendingRequests) {
       clearTimeout(pending.timeout)
@@ -258,5 +442,10 @@ export class Service<
     }
     this.pendingRequests.clear()
     this.messageHistory = []
+
+    // Terminate worker if exists
+    if (this.worker) {
+      this.worker.terminate()
+    }
   }
 }

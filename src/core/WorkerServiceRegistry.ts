@@ -21,7 +21,6 @@ const workerServiceRegistry = new Map<string, WorkerServiceInfo>()
  * Called automatically by the @withWorker decorator
  */
 export function registerWorkerServiceInfo(info: WorkerServiceInfo): void {
-  console.log(`[WorkerServiceRegistry] Registering worker service: ${info.serviceName}`)
   workerServiceRegistry.set(info.serviceName, info)
 }
 

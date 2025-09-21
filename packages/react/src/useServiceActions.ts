@@ -28,30 +28,24 @@ export function useServiceActions<T extends TypedServiceToken<any>>(
       'setState', 'setStates', 'updateState', 'handle'
     ])
 
-    // Check if this is a WorkerProxy (worker service)
-    const isWorkerProxy = service.constructor.name === 'WorkerProxy' ||
-                         (typeof (service as any).send === 'function' &&
-                          'state' in service &&
-                          Object.getOwnPropertyNames(Object.getPrototypeOf(service)).includes('handleWorkerMessage'))
     let availableMethods: string[] = []
 
-    if (isWorkerProxy) {
-      // For worker services, get the methods from the original service class
-      const serviceConstructor = container.getServiceConstructor(token)
-      if (serviceConstructor) {
-        // Get methods from the service class prototype
-        const prototype = serviceConstructor.prototype
-        availableMethods = Object.getOwnPropertyNames(prototype)
-          .filter(name => {
-            const descriptor = Object.getOwnPropertyDescriptor(prototype, name)
-            return descriptor &&
-                   typeof descriptor.value === 'function' &&
-                   name !== 'constructor' &&
-                   !baseServiceMethods.has(name)
-          })
-      }
+    // Get the service constructor to extract method names
+    const serviceConstructor = container.getServiceConstructor(token)
+
+    if (serviceConstructor) {
+      // Get methods from the service class prototype
+      const prototype = serviceConstructor.prototype
+      availableMethods = Object.getOwnPropertyNames(prototype)
+        .filter(name => {
+          const descriptor = Object.getOwnPropertyDescriptor(prototype, name)
+          return descriptor &&
+                 typeof descriptor.value === 'function' &&
+                 name !== 'constructor' &&
+                 !baseServiceMethods.has(name)
+        })
     } else {
-      // For regular services, get methods from the instance
+      // Fallback: For regular services, get methods from the instance
       availableMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(service))
         .filter(name => {
           const method = (service as any)[name]

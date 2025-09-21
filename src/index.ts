@@ -5,7 +5,6 @@ export { ServiceContainer } from './core/ServiceContainer'
 
 // Worker support
 export { withWorker, isWorkerService, getWorkerOptions } from './core/WorkerDecorator'
-export { WorkerProxy } from './core/WorkerProxy'
 export type { WorkerOptions } from './core/WorkerDecorator'
 
 // Worker service registry
@@ -16,8 +15,8 @@ export {
 } from './core/WorkerServiceRegistry'
 export type { WorkerServiceInfo } from './core/WorkerServiceRegistry'
 
-// Worker runtime - only for use in worker contexts
-export { registerWorkerService } from './worker/worker-runtime'
+// Worker registry - only for use in worker contexts
+export { registerWorkerService } from './worker/worker-registry'
 
 // Message handling
 export * from './core/Messages'

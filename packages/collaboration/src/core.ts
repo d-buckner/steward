@@ -1,5 +1,5 @@
 /**
- * Integration layer for using @steward/collaboration with @steward/core
+ * Integration layer for using @d-buckner/steward-collaboration with @steward/core
  * This module provides easy imports for the most common use cases
  */
 
