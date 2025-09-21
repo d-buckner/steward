@@ -18,30 +18,29 @@ export function createServiceState<T extends TypedServiceToken>(
   }
   const serviceSignals = signalCache.get(service)!
 
-  // Eagerly create signals for all state properties to support destructuring
-  const initialState = service.getState()
-  Object.keys(initialState).forEach(key => {
+  // Instead of Object.keys(service.state), get keys from the actual service getState method
+  const stateKeys = Object.keys(service.getState())
+  stateKeys.forEach(key => {
     if (!serviceSignals.has(key)) {
       const [value, setValue] = createSignal(service.state[key])
 
       const subscription = service.on(key, (newValue) => {
-        setValue(() => newValue)
+        setValue(newValue)
       })
 
       onCleanup(() => {
-        subscription.unsubscribe()
+        subscription?.unsubscribe()
         serviceSignals.delete(key)
       })
 
-      const getter = () => value()
-      serviceSignals.set(key, getter)
+      serviceSignals.set(key, value)
     }
   })
 
   return new Proxy({} as StateFromToken<T>, {
     get(target, prop: string | symbol) {
       if (typeof prop === 'string') {
-        // Return the cached signal value
+        // Return the cached signal accessor (for reactivity)
         if (serviceSignals.has(prop)) {
           return serviceSignals.get(prop)!()
         }
@@ -54,11 +53,11 @@ export function createServiceState<T extends TypedServiceToken>(
 
     // Support for Object.keys(), Object.entries(), etc. and destructuring
     ownKeys() {
-      return Object.keys(service.getState())
+      return Object.keys(service.state)
     },
 
     getOwnPropertyDescriptor(_, prop) {
-      if (typeof prop === 'string' && service.getState().hasOwnProperty(prop)) {
+      if (typeof prop === 'string' && service.state.hasOwnProperty(prop)) {
         return {
           enumerable: true,
           configurable: true,
@@ -69,7 +68,7 @@ export function createServiceState<T extends TypedServiceToken>(
     },
 
     has(_, prop) {
-      return typeof prop === 'string' && service.getState().hasOwnProperty(prop)
+      return typeof prop === 'string' && service.state.hasOwnProperty(prop)
     }
   })
 }

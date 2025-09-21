@@ -35,6 +35,11 @@ export class ServiceClient<T extends Service> {
             return target[prop].bind(target)
           }
 
+          // Handle getState method specifically for hooks
+          if (prop === 'getState') {
+            return () => target.getServiceInstance().getState()
+          }
+
           // Handle service methods
           if (target.isServiceMethod(prop)) {
             return (...args: any[]) => target.callMethod(prop, args)
@@ -65,6 +70,35 @@ export class ServiceClient<T extends Service> {
           return this.getCurrentStateValue(prop as keyof T['state'])
         }
         return undefined
+      },
+
+      ownKeys: () => {
+        const service = this.getServiceInstance()
+        return Object.keys((service as any)._state || {})
+      },
+
+      getOwnPropertyDescriptor: (_, prop) => {
+        if (typeof prop === 'string') {
+          const service = this.getServiceInstance()
+          const state = (service as any)._state || {}
+          if (prop in state) {
+            return {
+              enumerable: true,
+              configurable: true,
+              value: this.getCurrentStateValue(prop as keyof T['state'])
+            }
+          }
+        }
+        return undefined
+      },
+
+      has: (_, prop) => {
+        if (typeof prop === 'string') {
+          const service = this.getServiceInstance()
+          const state = (service as any)._state || {}
+          return prop in state
+        }
+        return false
       }
     })
   }
@@ -72,9 +106,16 @@ export class ServiceClient<T extends Service> {
   /**
    * EventBus implementation - these methods are exposed directly on the service interface
    */
-  on<K extends keyof T['state']>(key: K, callback: (value: T['state'][K]) => void): void {
+  on<K extends keyof T['state']>(key: K, callback: (value: T['state'][K]) => void): { unsubscribe: () => void } {
     this.eventBus.on(key as string, callback)
     this.trackSubscription(key as string, callback)
+
+    return {
+      unsubscribe: () => {
+        this.eventBus.off(key as string, callback)
+        this.untrackSubscription(key as string, callback)
+      }
+    }
   }
 
   off<K extends keyof T['state']>(key: K, callback?: (value: T['state'][K]) => void): void {
@@ -138,10 +179,10 @@ export class ServiceClient<T extends Service> {
   private setupLocalEventForwarding(): void {
     const service = this.getServiceInstance()
 
-    // Forward all state change events by monkey-patching emit
-    const originalEmit = (service as any).emit?.bind(service)
+    // Forward all state change events by monkey-patching eventBus.emit
+    const originalEmit = (service as any).eventBus?.emit?.bind((service as any).eventBus)
     if (originalEmit) {
-      (service as any).emit = (key: any, value: any) => {
+      (service as any).eventBus.emit = (key: any, value: any) => {
         originalEmit(key, value)
         this.emit(key, value)
       }
@@ -188,13 +229,9 @@ export class ServiceClient<T extends Service> {
    */
   private async callLocalMethod(methodName: string, args: any[]): Promise<any> {
     const service = this.getServiceInstance()
-    const method = (service as any)[methodName]
 
-    if (typeof method === 'function') {
-      return method.apply(service, args)
-    }
-
-    throw new Error(`Method ${methodName} not found on service ${this.token.id}`)
+    // Use mailbox pattern - send message instead of direct method call
+    return service.send(methodName, args)
   }
 
   /**
@@ -280,10 +317,7 @@ export class ServiceClient<T extends Service> {
    * Check if method is from base Service class (shouldn't be exposed to consumers)
    */
   private isBaseServiceMethod(prop: string): boolean {
-    const baseServiceMethods = [
-      'setState', 'setStates', 'emit', 'on', 'off', 'once', 'clear'
-    ]
-    return baseServiceMethods.includes(prop)
+    return Service.BASE_METHODS.has(prop)
   }
 
   /**

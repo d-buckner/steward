@@ -33,6 +33,14 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'node'
+    environment: 'node',
+    // Configure different environments for different test files
+    environmentMatchGlobs: [
+      // Use jsdom for React and Solid tests
+      ['packages/react/**', 'jsdom'],
+      ['packages/solid/**', 'jsdom'],
+      // Use node for everything else
+      ['**', 'node']
+    ]
   }
 })

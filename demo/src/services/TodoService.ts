@@ -1,4 +1,4 @@
-import { Service, ServiceState } from '@d-buckner/steward'
+import { Service } from '@d-buckner/steward'
 
 export interface Todo {
   id: string
@@ -9,7 +9,7 @@ export interface Todo {
   dueDate?: Date
 }
 
-interface TodoState extends ServiceState {
+interface TodoState {
   items: Todo[]
   filter: 'all' | 'active' | 'completed'
   loading: boolean

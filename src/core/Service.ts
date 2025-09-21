@@ -19,6 +19,17 @@ export class Service<
   TState extends Record<string, any> = Record<string, any>,
   Actions extends ServiceActions = ServiceActions,
 > implements EventBus {
+  /**
+   * List of base Service methods that should not be exposed as actions
+   * This is the single source of truth - update this list when adding new base methods
+   */
+  static readonly BASE_METHODS = new Set([
+    'setState', 'setStates', 'updateState', 'emit', 'on', 'off', 'once',
+    'removeAllListeners', 'hasListeners', 'getListenerCount', 'getState',
+    'send', 'request', 'resolveRequest', 'handle', 'clear', 'getWorker',
+    'getMessageHistory', 'clearMessageHistory', 'replayMessages'
+  ])
+
   private eventBus = new ServiceEventBus<TState>()
   private _state: TState
   private messageHistory: Message<Actions>[] = []
@@ -213,7 +224,7 @@ export class Service<
 
     // Log in development
     if (process.env.NODE_ENV === 'development') {
-      console.log(`[${this.constructor.name}] Handling message:`, message)
+      console.log(`[${this.constructor.name}] Queuing message:`, message)
     }
 
     try {

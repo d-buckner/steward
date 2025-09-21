@@ -169,8 +169,7 @@ class CounterService extends Service {
 
 // SolidJS component usage
 function Counter() {
-  const state = createServiceState(CounterToken)
-  const actions = createServiceActions(CounterToken)
+  const { state, actions } = createService(CounterToken)
 
   return (
     <button onClick={actions.increment}>

@@ -1,10 +1,9 @@
-import { createServiceState, createServiceActions } from '@d-buckner/steward-solid'
+import { createService } from '@d-buckner/steward-solid'
 import { createSignal, createMemo, For, Show } from 'solid-js'
 import { TodoToken } from '../services'
 
 export function TodoDemo() {
-  const state = createServiceState(TodoToken)
-  const actions = createServiceActions(TodoToken)
+  const { state, actions } = createService(TodoToken)
   
   const [newTodoText, setNewTodoText] = createSignal('')
   const [newTodoPriority, setNewTodoPriority] = createSignal<'low' | 'medium' | 'high'>('medium')

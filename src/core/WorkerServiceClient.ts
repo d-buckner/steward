@@ -2,6 +2,7 @@ import { ServiceEventBus } from './ServiceEventBus'
 import { EventBus, EventHandler, EventSubscription } from '../types'
 import { generateMessageId } from './Messages'
 import { getWorkerOptions } from './WorkerDecorator'
+import { Service } from './Service'
 
 /**
  * Client for communicating with worker services following the mailbox pattern.
@@ -247,11 +248,7 @@ export class WorkerServiceClient implements EventBus {
    * Check if method is from base Service class (shouldn't be exposed to consumers)
    */
   private isBaseServiceMethod(prop: string): boolean {
-    const baseServiceMethods = [
-      'setState', 'setStates', 'emit', 'on', 'off', 'once', 'clear', 'send', 'request',
-      'getState', 'getMessageHistory', 'clearMessageHistory', 'replayMessages'
-    ]
-    return baseServiceMethods.includes(prop)
+    return Service.BASE_METHODS.has(prop)
   }
 
   /**

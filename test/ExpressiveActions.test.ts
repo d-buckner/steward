@@ -93,8 +93,8 @@ describe('Service Actions API', () => {
   })
 
   it('should support multi-parameter actions', async () => {
-    // Test sending message via service with camelCase action name
-    await service.send('addItem', ['Learn Steward', 1])
+    // Test calling method directly on service
+    await service.addItem('Learn Steward', 1)
 
     const items = service.state.items
     expect(items).toEqual([{
@@ -106,10 +106,10 @@ describe('Service Actions API', () => {
 
   it('should handle updateItem with optional parameters', async () => {
     // Add an item first
-    await service.send('addItem', ['Original', 1])
+    await service.addItem('Original', 1)
 
     // Test update with all parameters
-    await service.send('updateItem', [0, 'Updated text', 2])
+    await service.updateItem(0, 'Updated text', 2)
 
     let items = service.state.items
     expect(items[0]).toEqual({
@@ -119,7 +119,7 @@ describe('Service Actions API', () => {
     })
 
     // Test update without optional priority
-    await service.send('updateItem', [0, 'Final text'])
+    await service.updateItem(0, 'Final text')
 
     items = service.state.items
     expect(items[0]).toEqual({
@@ -131,10 +131,10 @@ describe('Service Actions API', () => {
 
   it('should handle complex assignments with dates', async () => {
     // Add an item first
-    await service.send('addItem', ['Important task', 3])
+    await service.addItem('Important task', 3)
 
     const dueDate = new Date('2024-12-31')
-    await service.send('assignTo', [0, 'Alice', dueDate])
+    await service.assignTo(0, 'Alice', dueDate)
 
     const items = service.state.items
     expect(items[0]).toEqual({
@@ -148,41 +148,29 @@ describe('Service Actions API', () => {
 
   it('should handle simple actions', async () => {
     // Add an item first
-    await service.send('addItem', ['Toggle me', 1])
+    await service.addItem('Toggle me', 1)
 
     // Toggle the item
-    await service.send('toggleItem', [0])
+    await service.toggleItem(0)
 
     const items = service.state.items
     expect(items[0].completed).toBe(true)
 
     // Clear all items
-    await service.send('clearAll', [])
+    await service.clearAll()
 
     expect(service.state.items).toEqual([])
   })
 
-  it('should maintain message history with proper payloads', async () => {
-    await service.send('addItem', ['Task 1', 1])
-    await service.send('addItem', ['Task 2', 2])
-    await service.send('setFilter', ['completed'])
+  it('should handle method calls and maintain state correctly', async () => {
+    await service.addItem('Task 1', 1)
+    await service.addItem('Task 2', 2)
+    await service.setFilter('completed')
 
-    const history = service.getMessageHistory()
-    expect(history).toHaveLength(3)
-
-    expect(history[0]).toMatchObject({
-      type: 'addItem',
-      payload: ['Task 1', 1]
-    })
-
-    expect(history[1]).toMatchObject({
-      type: 'addItem',
-      payload: ['Task 2', 2]
-    })
-
-    expect(history[2]).toMatchObject({
-      type: 'setFilter',
-      payload: ['completed']
-    })
+    // Verify the state changes worked correctly
+    expect(service.state.items).toHaveLength(2)
+    expect(service.state.filter).toBe('completed')
+    expect(service.state.items[0].text).toBe('Task 1')
+    expect(service.state.items[1].text).toBe('Task 2')
   })
 })

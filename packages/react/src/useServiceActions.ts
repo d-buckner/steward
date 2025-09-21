@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import {
   TypedServiceToken,
-  ExtractActions
+  ExtractActions,
+  Service
 } from '@d-buckner/steward'
 import { useServiceContainer } from './ServiceProvider'
 
@@ -19,15 +20,6 @@ export function useServiceActions<T extends TypedServiceToken<any>>(
   const service = container.resolve(token)
 
   return useMemo(() => {
-    // List of Service base methods that should not be exposed as actions
-    // This mirrors the ExtractActions type logic but is more reliable at runtime
-    const baseServiceMethods = new Set([
-      'send', 'request', 'on', 'off', 'once', 'removeAllListeners',
-      'hasListeners', 'getListenerCount', 'getState', 'clear',
-      'getMessageHistory', 'clearMessageHistory', 'replayMessages', 'resolveRequest',
-      'setState', 'setStates', 'updateState', 'handle'
-    ])
-
     let availableMethods: string[] = []
 
     // Get the service constructor to extract method names
@@ -42,7 +34,7 @@ export function useServiceActions<T extends TypedServiceToken<any>>(
           return descriptor &&
                  typeof descriptor.value === 'function' &&
                  name !== 'constructor' &&
-                 !baseServiceMethods.has(name)
+                 !Service.BASE_METHODS.has(name)
         })
     } else {
       // Fallback: For regular services, get methods from the instance
@@ -51,7 +43,7 @@ export function useServiceActions<T extends TypedServiceToken<any>>(
           const method = (service as any)[name]
           return typeof method === 'function' &&
                  name !== 'constructor' &&
-                 !baseServiceMethods.has(name)
+                 !Service.BASE_METHODS.has(name)
         })
     }
 
@@ -59,9 +51,9 @@ export function useServiceActions<T extends TypedServiceToken<any>>(
     return new Proxy({} as ActionsFromToken<T>, {
       get(target, prop: string | symbol) {
         if (typeof prop === 'string' && availableMethods.includes(prop)) {
-          // Return a function that sends the message to the service
+          // Return a function that calls the method directly on the service client
           return async (...args: any[]) => {
-            return (service as any).send(prop, args)
+            return (service as any)[prop](...args)
           }
         }
         return target[prop as keyof ActionsFromToken<T>]

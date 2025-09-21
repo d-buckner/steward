@@ -34,11 +34,11 @@ export type {
 // Service Base Types
 export type { ServiceState, ServiceActions, ExtractActions } from './core/ServiceTypes'
 
+// Utilities
+export { ServiceStateObserver } from './core/ServiceStateObserver'
+
 // Types
 export type { EventBus, EventHandler, EventSubscription } from './types'
 export type { ServiceConstructor } from './core/ServiceContainer'
-
-// Headless service utilities
-export * from './headless'
 
 // Build plugins are available via '@d-buckner/steward/vite'

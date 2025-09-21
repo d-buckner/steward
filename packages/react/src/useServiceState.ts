@@ -16,8 +16,8 @@ export function useServiceState<T extends TypedServiceToken>(
   const [, forceUpdate] = useState(0)
 
   useEffect(() => {
-    // Get all state keys and subscribe to all of them
-    const stateKeys = Object.keys(service.getState())
+    // Get all state keys from the state proxy and subscribe to all of them
+    const stateKeys = Object.keys(service.state)
     const subscriptions = stateKeys.map(key =>
       service.on(key, () => {
         forceUpdate(prev => prev + 1) // Force re-render
@@ -32,7 +32,7 @@ export function useServiceState<T extends TypedServiceToken>(
   return useMemo(() => {
     // Check if we already have a cached state proxy for this service
     if (stateCache.has(service)) {
-      return stateCache.get(service)!
+      return stateCache.get(service)! as StateFromToken<T>
     }
 
     // Create a new proxy that provides reactive access to state properties
@@ -46,11 +46,11 @@ export function useServiceState<T extends TypedServiceToken>(
 
       // Support for Object.keys(), Object.entries(), etc. and destructuring
       ownKeys() {
-        return Object.keys(service.getState())
+        return Object.keys(service.state)
       },
 
       getOwnPropertyDescriptor(_, prop) {
-        if (typeof prop === 'string' && service.getState().hasOwnProperty(prop)) {
+        if (typeof prop === 'string' && prop in service.state) {
           return {
             enumerable: true,
             configurable: true,
@@ -61,11 +61,11 @@ export function useServiceState<T extends TypedServiceToken>(
       },
 
       has(_, prop) {
-        return typeof prop === 'string' && service.getState().hasOwnProperty(prop)
+        return typeof prop === 'string' && prop in service.state
       }
     })
 
-    stateCache.set(service, stateProxy)
+    stateCache.set(service, stateProxy as any)
     return stateProxy
   }, [service])
 }

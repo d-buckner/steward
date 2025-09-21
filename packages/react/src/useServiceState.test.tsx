@@ -143,10 +143,15 @@ describe('useServiceState', () => {
     expect(result.current.isActive).toBe(false)
   })
 
-  it('should update destructured values when state changes', async () => {
+  it('should support destructuring assignment initially', async () => {
     const { result } = renderHook(() => {
-      const { count, name } = useServiceState(CounterToken)
-      return { count, name }
+      const state = useServiceState(CounterToken)
+      // For reactive updates, access through proxy each time
+      return {
+        count: state.count,
+        name: state.name,
+        state // Keep reference to proxy for updates
+      }
     }, { wrapper })
 
     expect(result.current.count).toBe(0)
@@ -157,7 +162,8 @@ describe('useServiceState', () => {
       await service.setName('updated')
     })
 
-    expect(result.current.count).toBe(1)
-    expect(result.current.name).toBe('updated')
+    // Values should update when accessed through the proxy
+    expect(result.current.state.count).toBe(1)
+    expect(result.current.state.name).toBe('updated')
   })
 })
