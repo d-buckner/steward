@@ -1,23 +1,27 @@
 import { Service } from './Service'
-import { ServiceState, ServiceActions } from './ServiceTypes'
 
-// Base token type - more flexible, allowing any service that extends the base Service
-export interface TypedServiceToken<T extends Service<any, any> = Service<ServiceState, ServiceActions>> {
-  readonly __type: T
+// Opaque brand for service tokens to prevent direct type extraction
+const ServiceTokenBrand = Symbol('ServiceTokenBrand')
+
+// Base token type - opaque to prevent direct service access
+export interface TypedServiceToken<T extends Service = Service> {
+  readonly [ServiceTokenBrand]: T
   readonly symbol: symbol
   readonly name: string
+  readonly id: string
 }
 
 // Service registry interface - users will augment this
 export interface ServiceRegistry {}
 
-// Helper to create typed tokens
-export function createServiceToken<T extends Service<any, any>>(name: string): TypedServiceToken<T> {
+// Helper to create typed tokens - only way to create service tokens
+export function createServiceToken<T extends Service>(name: string): TypedServiceToken<T> {
   return {
-    __type: {} as T,
+    [ServiceTokenBrand]: {} as T,
     symbol: Symbol(name),
-    name
-  }
+    name,
+    id: name
+  } as TypedServiceToken<T>
 }
 
 // Namespace for all service tokens - provides ServiceToken.Name API

@@ -40,6 +40,32 @@ export class WorkerServiceClient implements EventBus {
 
     // Set up worker
     this.setupWorker()
+
+    // Return a Proxy that intercepts method calls and forwards them to worker
+    return new Proxy(this, {
+      get: (target, prop, receiver) => {
+        if (typeof prop === 'string') {
+          // Handle state property access
+          if (prop === 'state') {
+            return target.state
+          }
+
+          // Handle EventBus methods (on, off, once, etc.)
+          if (prop === 'on' || prop === 'off' || prop === 'once' || prop === 'removeAllListeners' ||
+              prop === 'hasListeners' || prop === 'getListenerCount' || prop === 'getState' || prop === 'clear') {
+            return target[prop].bind(target)
+          }
+
+          // Handle service methods by checking if they exist on the service constructor prototype
+          if (target.isServiceMethod(prop)) {
+            return (...args: any[]) => target.callWorkerMethod(prop, args)
+          }
+        }
+
+        // Fallback to original property
+        return Reflect.get(target, prop, receiver)
+      }
+    }) as any
   }
 
   private setupWorker(): void {
@@ -194,5 +220,44 @@ export class WorkerServiceClient implements EventBus {
     if (this.worker) {
       this.worker.terminate()
     }
+  }
+
+  /**
+   * Check if a property is a service method that should be forwarded to worker
+   */
+  private isServiceMethod(prop: string): boolean {
+    let currentPrototype = this.ServiceConstructor.prototype
+
+    // Check if it's a method on the service prototype
+    while (currentPrototype && currentPrototype !== Object.prototype) {
+      const descriptor = Object.getOwnPropertyDescriptor(currentPrototype, prop)
+      if (descriptor && typeof descriptor.value === 'function' && prop !== 'constructor') {
+        // Exclude base Service class methods that shouldn't be exposed
+        if (!this.isBaseServiceMethod(prop)) {
+          return true
+        }
+      }
+      currentPrototype = Object.getPrototypeOf(currentPrototype)
+    }
+
+    return false
+  }
+
+  /**
+   * Check if method is from base Service class (shouldn't be exposed to consumers)
+   */
+  private isBaseServiceMethod(prop: string): boolean {
+    const baseServiceMethods = [
+      'setState', 'setStates', 'emit', 'on', 'off', 'once', 'clear', 'send', 'request',
+      'getState', 'getMessageHistory', 'clearMessageHistory', 'replayMessages'
+    ]
+    return baseServiceMethods.includes(prop)
+  }
+
+  /**
+   * Call a method on the worker service
+   */
+  private async callWorkerMethod(methodName: string, args: any[]): Promise<any> {
+    return this.request(methodName, args)
   }
 }

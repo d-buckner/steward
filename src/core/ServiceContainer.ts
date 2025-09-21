@@ -1,7 +1,16 @@
 import { TypedServiceToken, ServiceFromToken } from './ServiceTokens'
 import { WorkerServiceClient } from './WorkerServiceClient'
+import { ServiceClient } from './ServiceClient'
+import { Service } from './Service'
 
-export type ServiceConstructor<T = any> = new (...args: any[]) => T
+export type ServiceConstructor<T extends Service = Service> = new (...args: ServiceFromToken<TypedServiceToken<Service>>[]) => T
+
+export interface ServiceRegistrationOptions {
+  dependencies?: TypedServiceToken<Service>[]
+}
+
+// Internal type - ServiceClient should never appear in public APIs
+type InternalServiceClient<T extends Service> = ServiceClient<T>
 
 /**
  * Checks if a service class is marked for worker execution using the @withWorker decorator
@@ -72,76 +81,117 @@ function isWorkerService(ServiceConstructor: any): boolean {
  * - Type safety is preserved across the worker boundary
  */
 export class ServiceContainer {
-  private services = new Map<symbol, any>()
-  private instances = new Map<symbol, any>()
+  private services = new Map<symbol, ServiceConstructor>()
+  private serviceInstances = new Map<symbol, Service>()
+  private internalClients = new Map<symbol, InternalServiceClient<Service>>()
+  private registrationOptions = new Map<symbol, ServiceRegistrationOptions>()
 
   /**
-   * Register a service constructor with a token
+   * Register a service constructor with a token and optional dependencies
+   * Creates the appropriate client immediately based on service type
    *
    * @param token - The service token that uniquely identifies this service
    * @param serviceConstructor - The constructor function for the service class
+   * @param options - Registration options including dependencies
    */
-  register<T extends TypedServiceToken<any>>(token: T, serviceConstructor: ServiceConstructor<ServiceFromToken<T>>): void {
+  register<T extends TypedServiceToken<Service>>(
+    token: T,
+    serviceConstructor: ServiceConstructor<ServiceFromToken<T>>,
+    options?: ServiceRegistrationOptions
+  ): void {
+    // Store constructor and options for potential future use
     this.services.set(token.symbol, serviceConstructor)
+    if (options) {
+      this.registrationOptions.set(token.symbol, options)
+    }
+
+    // Create appropriate client based on service type
+    const client = this.createClientForService(token, serviceConstructor, options)
+    this.internalClients.set(token.symbol, client)
   }
 
   /**
-   * Resolve a service instance by token (singleton pattern)
+   * Create the appropriate client for a service based on its type (PRIVATE)
    *
-   * This is the core method that implements the service instantiation logic:
+   * This method handles:
+   * 1. Worker services - creates WorkerServiceClient
+   * 2. Local services - creates ServiceClient wrapping the service instance
+   */
+  private createClientForService<T extends TypedServiceToken<Service>>(
+    token: T,
+    serviceConstructor: ServiceConstructor<ServiceFromToken<T>>,
+    options?: ServiceRegistrationOptions
+  ): InternalServiceClient<Service> {
+    if (isWorkerService(serviceConstructor)) {
+      // WORKER SERVICE: Create WorkerServiceClient directly
+      const initialState = typeof (serviceConstructor as any).getInitialState === 'function'
+        ? (serviceConstructor as any).getInitialState()
+        : {}
+      return new WorkerServiceClient(serviceConstructor, initialState) as any
+    } else {
+      // LOCAL SERVICE: Create service instance and wrap in ServiceClient
+      const serviceInstance = this.createServiceInstance(token, serviceConstructor, options)
+      return new ServiceClient(
+        token as any,
+        () => serviceInstance,
+        undefined // Not a worker service
+      )
+    }
+  }
+
+  /**
+   * Resolve a service by token
    *
-   * 1. **Check Cache**: Returns existing instance if already created
-   * 2. **Worker Detection**: Uses isWorkerService() to detect @withWorker decorator
-   * 3. **Instance Creation**:
-   *    - For worker services: Creates WorkerServiceClient with proper initial state
-   *    - For regular services: Creates service instance directly
-   * 4. **Caching**: Stores instance for future requests
-   *
-   * ## Worker Service Handling:
-   *
-   * When resolving a worker service:
-   * - Calls ServiceConstructor.getInitialState() if available to get shared initial state
-   * - Creates WorkerServiceClient(ServiceConstructor, initialState)
-   * - WorkerServiceClient handles worker communication transparently
-   * - Returns WorkerServiceClient instance that implements same interface as service
+   * Returns the pre-created service client with full type safety. All communication
+   * automatically follows the mailbox pattern for location transparency.
    *
    * @param token - The service token to resolve
-   * @returns Service instance (or WorkerServiceClient for worker services)
+   * @returns The service client instance
    * @throws Error if service not registered
    */
-  resolve<T extends TypedServiceToken<any>>(token: T): ServiceFromToken<T> {
-    // Return existing instance if available (singleton pattern)
-    const existingInstance = this.instances.get(token.symbol)
+  resolve<T extends TypedServiceToken<Service>>(token: T): ServiceFromToken<T> {
+    const client = this.internalClients.get(token.symbol)
+    if (!client) {
+      throw new Error(`Service not registered for token: ${token.name}`)
+    }
+
+    return client as unknown as ServiceFromToken<T>
+  }
+
+  /**
+   * Create a local service instance with dependency injection (PRIVATE)
+   *
+   * This method handles:
+   * 1. Dependency resolution - resolves all dependency tokens to clients
+   * 2. Constructor injection - passes dependency clients to service constructor
+   * Note: Only used for local services, worker services are handled separately
+   */
+  private createServiceInstance<T extends TypedServiceToken<Service>>(
+    token: T,
+    serviceConstructor: ServiceConstructor<ServiceFromToken<T>>,
+    options?: ServiceRegistrationOptions
+  ): ServiceFromToken<T> {
+    // Return existing service instance if available
+    const existingInstance = this.serviceInstances.get(token.symbol)
     if (existingInstance) {
       return existingInstance as ServiceFromToken<T>
     }
 
-    // Get constructor from registry
-    const ServiceConstructor = this.services.get(token.symbol)
-    if (!ServiceConstructor) {
-      throw new Error(`Service not registered for token: ${token.name}`)
-    }
+    // Create local service instance with dependency injection
+    const dependencyClients = this.resolveDependencies(options?.dependencies || [])
+    const instance = new serviceConstructor(...dependencyClients)
 
-    let instance: any
-
-    if (isWorkerService(ServiceConstructor)) {
-      // WORKER SERVICE PATH:
-      // Create WorkerServiceClient - the actual service runs in the worker thread
-      // Get initial state from static method if available, otherwise use empty object
-      const initialState = typeof ServiceConstructor.getInitialState === 'function'
-        ? ServiceConstructor.getInitialState()
-        : {}
-      instance = new WorkerServiceClient(ServiceConstructor, initialState)
-    } else {
-      // REGULAR SERVICE PATH:
-      // Create service instance directly in main thread
-      instance = new ServiceConstructor()
-    }
-
-    // Cache instance for future requests (singleton pattern)
-    this.instances.set(token.symbol, instance)
+    // Cache service instance
+    this.serviceInstances.set(token.symbol, instance)
 
     return instance as ServiceFromToken<T>
+  }
+
+  /**
+   * Resolve dependency tokens to services
+   */
+  private resolveDependencies(dependencies: TypedServiceToken<Service>[]): ServiceFromToken<TypedServiceToken<Service>>[] {
+    return dependencies.map(depToken => this.resolve(depToken))
   }
 
   /**
@@ -150,7 +200,7 @@ export class ServiceContainer {
    * @param token - The service token
    * @returns The constructor function if registered, undefined otherwise
    */
-  getServiceConstructor<T extends TypedServiceToken<any>>(token: T): ServiceConstructor<ServiceFromToken<T>> | undefined {
+  getServiceConstructor<T extends TypedServiceToken<Service>>(token: T): ServiceConstructor<ServiceFromToken<T>> | undefined {
     return this.services.get(token.symbol) as ServiceConstructor<ServiceFromToken<T>> | undefined
   }
 
@@ -158,20 +208,27 @@ export class ServiceContainer {
    * Dispose all service instances and clean up resources
    *
    * This method:
-   * 1. Calls clear() on all instances that have this method (for cleanup)
-   * 2. Clears the instance cache
-   * 3. Leaves service registrations intact for potential reuse
-   *
-   * Note: WorkerServiceClient instances will terminate their workers when cleared
+   * 1. Calls dispose() on all services for cleanup
+   * 2. Calls clear() on all service instances that have this method
+   * 3. Clears all caches
+   * 4. Leaves service registrations intact for potential reuse
    */
   dispose(): void {
+    // Clean up all service proxies
+    this.internalClients.forEach(serviceProxy => {
+      if (serviceProxy && typeof serviceProxy.dispose === 'function') {
+        serviceProxy.dispose()
+      }
+    })
+
     // Clear all service instances
-    this.instances.forEach(instance => {
+    this.serviceInstances.forEach(instance => {
       if (instance && typeof instance.clear === 'function') {
         instance.clear()
       }
     })
 
-    this.instances.clear()
+    this.internalClients.clear()
+    this.serviceInstances.clear()
   }
 }

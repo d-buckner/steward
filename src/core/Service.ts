@@ -5,7 +5,7 @@ import {
   createMessage,
   generateMessageId
 } from './Messages'
-import { ServiceState, ServiceActions } from './ServiceTypes'
+import { ServiceActions } from './ServiceTypes'
 import { getWorkerOptions } from './WorkerDecorator'
 
 /**
@@ -16,7 +16,7 @@ import { getWorkerOptions } from './WorkerDecorator'
  * Just define your state and methods - no manual action interfaces needed!
  */
 export class Service<
-  TState extends ServiceState = ServiceState,
+  TState extends Record<string, any> = Record<string, any>,
   Actions extends ServiceActions = ServiceActions,
 > implements EventBus {
   private eventBus = new ServiceEventBus<TState>()
@@ -427,6 +427,13 @@ export class Service<
   private handleWorkerError(error: ErrorEvent): void {
     console.error('[Service] Worker error:', error)
     this.rejectInit?.(new Error(`Worker error: ${error.message}`))
+  }
+
+  /**
+   * Get worker instance for ServiceClient communication
+   */
+  public getWorker(): Worker | undefined {
+    return this.worker
   }
 
   /**
