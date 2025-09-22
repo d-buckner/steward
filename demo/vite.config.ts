@@ -23,7 +23,7 @@ export default defineConfig({
   worker: {
     format: 'es'
   },
-  base: './',
+  base: process.env.NODE_ENV === 'production' ? '/steward/' : './',
   optimizeDeps: {
     exclude: ['@automerge/automerge', 'glob', 'node:events', 'node:fs', 'node:path', '@d-buckner/steward']
   },
