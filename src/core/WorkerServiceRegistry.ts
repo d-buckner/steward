@@ -14,14 +14,14 @@ export interface WorkerServiceInfo {
 }
 
 // Global registry of worker services
-const workerServiceRegistry = new Map<string, WorkerServiceInfo>()
+const workerServiceRegistry = new Map<string, WorkerServiceInfo>();
 
 /**
  * Register a service for worker usage
  * Called automatically by the @withWorker decorator
  */
 export function registerWorkerServiceInfo(info: WorkerServiceInfo): void {
-  workerServiceRegistry.set(info.serviceName, info)
+  workerServiceRegistry.set(info.serviceName, info);
 }
 
 /**
@@ -29,19 +29,19 @@ export function registerWorkerServiceInfo(info: WorkerServiceInfo): void {
  * Used by the framework to set up worker service imports
  */
 export function getRegisteredWorkerServices(): Map<string, WorkerServiceInfo> {
-  return new Map(workerServiceRegistry)
+  return new Map(workerServiceRegistry);
 }
 
 /**
  * Get specific worker service info
  */
 export function getWorkerServiceInfo(serviceName: string): WorkerServiceInfo | undefined {
-  return workerServiceRegistry.get(serviceName)
+  return workerServiceRegistry.get(serviceName);
 }
 
 /**
  * Clear registry (useful for testing)
  */
 export function clearWorkerServiceRegistry(): void {
-  workerServiceRegistry.clear()
+  workerServiceRegistry.clear();
 }

@@ -4,10 +4,10 @@ Steward is a frontend framework that makes modeling complex business logic simpl
 
 This service-based approach helps you build applications that naturally reflect your business domains while solving common frontend scaling problems:
 
-- **Utilize multiple threads** without rewriting service code
-- **Services run anywhere** - locally, in workers, or remotely with identical APIs
+- **Location transparency** - services run locally, in workers, or remotely with identical APIs
 - **Isolated failures** - service crashes don't affect other parts of your app
 - **Fine-grained reactivity** - state updates only trigger necessary re-renders
+- **Progressive scaling** - start simple, add complexity only when needed
 
 The architecture is inspired by Erlang's actor model, where isolated processes communicate through messages. This pattern has proven effective in systems like WhatsApp's messaging infrastructure and Discord's real-time chat.
 
@@ -320,6 +320,220 @@ class EditorService extends Service<EditorState> {
 }
 ```
 
+## Error Handling
+
+Steward uses reactive error state rather than exceptions, making error handling predictable and UI-friendly:
+
+```typescript
+interface AudioState extends ServiceState {
+  isRecording: boolean
+  volume: number
+  error: 'MICROPHONE_ACCESS_DENIED' | 'AUDIO_ENGINE_FAILED' | 'RECORDING_TOO_LONG' | null
+}
+
+class AudioService extends Service<AudioState> {
+  constructor() {
+    super({
+      isRecording: false,
+      volume: 0,
+      error: null
+    })
+  }
+
+  async startRecording() {
+    // Clear previous errors
+    if (this.state.error) {
+      this.setState('error', null)
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      this.setState('isRecording', true)
+      this.initializeAudioEngine(stream)
+    } catch (error) {
+      if (error.name === 'NotAllowedError') {
+        this.setState('error', 'MICROPHONE_ACCESS_DENIED')
+      } else {
+        this.setState('error', 'AUDIO_ENGINE_FAILED')
+      }
+    }
+  }
+
+  stopRecording() {
+    if (this.state.isRecording) {
+      this.setState('isRecording', false)
+      this.setState('error', null)
+    }
+  }
+
+  clearError() {
+    this.setState('error', null)
+  }
+}
+```
+
+Your components handle errors reactively through normal state:
+
+```tsx
+function AudioRecorder() {
+  const { isRecording, volume, error } = useServiceState(AudioToken)
+  const { startRecording, stopRecording, clearError } = useServiceActions(AudioToken)
+
+  // Handle errors in your UI
+  if (error === 'MICROPHONE_ACCESS_DENIED') {
+    return (
+      <div className="error-panel">
+        <p>Microphone access is required for recording</p>
+        <button onClick={() => clearError()}>Try Again</button>
+      </div>
+    )
+  }
+
+  if (error === 'AUDIO_ENGINE_FAILED') {
+    return (
+      <div className="error-panel">
+        <p>Audio system failed to initialize</p>
+        <button onClick={() => clearError()}>Retry</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="recorder">
+      <button
+        onClick={isRecording ? stopRecording : startRecording}
+        disabled={!!error}
+      >
+        {isRecording ? 'Stop' : 'Start'} Recording
+      </button>
+
+      {isRecording && <VolumeIndicator level={volume} />}
+    </div>
+  )
+}
+```
+
+## Real-World Examples
+
+### File Upload Service
+```typescript
+interface FileUploadState extends ServiceState {
+  files: UploadFile[]
+  uploading: boolean
+  progress: number
+  error: 'NETWORK_ERROR' | 'FILE_TOO_LARGE' | 'INVALID_FORMAT' | null
+}
+
+class FileUploadService extends Service<FileUploadState> {
+  constructor() {
+    super({
+      files: [],
+      uploading: false,
+      progress: 0,
+      error: null
+    })
+  }
+
+  addFiles(fileList: FileList) {
+    const newFiles = Array.from(fileList).map(file => ({
+      id: generateId(),
+      file,
+      status: 'pending' as const
+    }))
+
+    // Validate file sizes
+    const invalidFiles = newFiles.filter(f => f.file.size > 10 * 1024 * 1024)
+    if (invalidFiles.length > 0) {
+      this.setState('error', 'FILE_TOO_LARGE')
+      return
+    }
+
+    this.setState('files', [...this.state.files, ...newFiles])
+  }
+
+  async uploadFiles() {
+    this.setState({ uploading: true, progress: 0, error: null })
+
+    try {
+      for (let i = 0; i < this.state.files.length; i++) {
+        await this.uploadFile(this.state.files[i])
+        this.setState('progress', ((i + 1) / this.state.files.length) * 100)
+      }
+    } catch (error) {
+      this.setState('error', 'NETWORK_ERROR')
+    } finally {
+      this.setState('uploading', false)
+    }
+  }
+}
+```
+
+### Real-time Chat Service
+```typescript
+interface ChatState extends ServiceState {
+  messages: Message[]
+  typing: User[]
+  connected: boolean
+  error: 'CONNECTION_LOST' | 'RATE_LIMITED' | null
+}
+
+class ChatService extends Service<ChatState> {
+  private ws?: WebSocket
+
+  constructor() {
+    super({
+      messages: [],
+      typing: [],
+      connected: false,
+      error: null
+    })
+  }
+
+  connect() {
+    this.ws = new WebSocket('wss://chat.example.com')
+
+    this.ws.onopen = () => {
+      this.setState({ connected: true, error: null })
+    }
+
+    this.ws.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+
+      if (data.type === 'message') {
+        this.setState('messages', [...this.state.messages, data.message])
+      } else if (data.type === 'typing') {
+        this.setState('typing', data.users)
+      }
+    }
+
+    this.ws.onclose = () => {
+      this.setState({ connected: false, error: 'CONNECTION_LOST' })
+      // Auto-reconnect logic
+      setTimeout(() => this.connect(), 5000)
+    }
+  }
+
+  sendMessage(content: string) {
+    if (!this.state.connected) return
+
+    const message = {
+      id: generateId(),
+      content,
+      timestamp: Date.now(),
+      user: getCurrentUser()
+    }
+
+    // Optimistic update
+    this.setState('messages', [...this.state.messages, message])
+
+    this.ws?.send(JSON.stringify({
+      type: 'message',
+      message
+    }))
+  }
+}
+```
+
 ## Live Examples
 
 See the architecture in action: **[Demo](https://steward-demo.vercel.app)**
@@ -328,6 +542,7 @@ See the architecture in action: **[Demo](https://steward-demo.vercel.app)**
 - **Todos**: Message-driven state management
 - **Chat**: Real-time service communication
 - **Data Processing**: Worker services handling millions of items
+- **File Upload**: Progress tracking and error handling
 - **Collaboration**: CRDT-based multi-user editing
 
 ## Inspiration

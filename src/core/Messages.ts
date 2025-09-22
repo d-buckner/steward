@@ -11,7 +11,6 @@ export interface Message<T extends ServiceActions, K extends keyof T = keyof T> 
   payload: T[K]
   id: string
   timestamp: number
-  correlationId?: string
 }
 
 export interface MessageHandler<T extends ServiceActions> {
@@ -20,22 +19,20 @@ export interface MessageHandler<T extends ServiceActions> {
 
 // Utility to generate unique IDs
 export function generateMessageId(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36)
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
 // Helper to create messages
 export function createMessage<T extends ServiceActions, K extends keyof T>(
   type: K,
-  payload: T[K],
-  correlationId?: string
+  payload: T[K]
 ): Message<T, K> {
   return {
     type,
     payload,
     id: generateMessageId(),
-    timestamp: Date.now(),
-    correlationId
-  }
+    timestamp: Date.now()
+  };
 }
 
 // Type helpers for message-driven services

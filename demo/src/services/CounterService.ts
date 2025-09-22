@@ -6,6 +6,7 @@ interface CounterState extends ServiceState {
   name: string
   isActive: boolean
   history: number[]
+  error: 'STEP_OUT_OF_BOUNDS' | 'HISTORY_OVERFLOW' | null
 }
 
 export class CounterService extends Service<CounterState> {
@@ -15,12 +16,24 @@ export class CounterService extends Service<CounterState> {
       step: 1,
       name: 'counter',
       isActive: true,
-      history: [0]
+      history: [0],
+      error: null
     })
   }
 
   increment() {
     if (!this.state.isActive) return
+
+    // Clear previous errors
+    if (this.state.error) {
+      this.setState('error', null)
+    }
+
+    // Check for potential overflow
+    if (this.state.history.length >= 100) {
+      this.setState('error', 'HISTORY_OVERFLOW')
+      return
+    }
 
     const newCount = this.state.count + this.state.step
     this.setState('count', newCount)
@@ -36,7 +49,18 @@ export class CounterService extends Service<CounterState> {
   }
 
   setStep(step: number) {
-    this.setState('step', Math.max(1, Math.min(10, step)))
+    // Clear previous errors
+    if (this.state.error) {
+      this.setState('error', null)
+    }
+
+    // Validate step bounds
+    if (step < 1 || step > 10) {
+      this.setState('error', 'STEP_OUT_OF_BOUNDS')
+      return
+    }
+
+    this.setState('step', step)
   }
 
   setName(name: string) {
@@ -50,6 +74,11 @@ export class CounterService extends Service<CounterState> {
   reset() {
     this.setState('count', 0)
     this.setState('history', [0])
+    this.setState('error', null)
+  }
+
+  clearError() {
+    this.setState('error', null)
   }
 
   undo() {

@@ -1,5 +1,6 @@
-import { Service } from './Service'
-import { registerWorkerServiceInfo } from './WorkerServiceRegistry'
+import { registerWorkerServiceInfo } from './WorkerServiceRegistry';
+import type { Service } from './Service';
+
 
 export interface WorkerOptions {
   /**
@@ -48,18 +49,18 @@ export function withWorker(nameOrOptions: string | WorkerOptions) {
 
     // Store original class info for worker instantiation
     ;(target as any).__workerServiceName = target.name
-    ;(target as any).__workerServiceCode = target.toString()
+    ;(target as any).__workerServiceCode = target.toString();
 
     // Register this service for auto-discovery
     registerWorkerServiceInfo({
       serviceName: target.name,
       serviceClass: target,
       options
-    })
+    });
 
 
-    return target
-  }
+    return target;
+  };
 }
 
 /**
@@ -71,12 +72,12 @@ export function isWorkerService(serviceClass: any): serviceClass is (new (...arg
   __workerServiceName: string
   __workerServiceCode: string
 } {
-  return serviceClass?.__isWorkerService === true
+  return serviceClass?.__isWorkerService === true;
 }
 
 /**
  * Get worker options for a worker service class
  */
 export function getWorkerOptions(serviceClass: any): WorkerOptions {
-  return serviceClass?.__workerOptions || {}
+  return serviceClass?.__workerOptions || {};
 }

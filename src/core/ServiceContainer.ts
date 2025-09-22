@@ -1,12 +1,13 @@
-import { TypedServiceToken, ServiceFromToken } from './ServiceTokens'
-import { WorkerServiceClient } from './WorkerServiceClient'
-import { ServiceClient } from './ServiceClient'
-import { Service } from './Service'
+import { ServiceClient } from './ServiceClient';
+import { WorkerServiceClient } from './WorkerServiceClient';
+import type { Service } from './Service';
+import type { TypedServiceToken, ServiceFromToken } from './ServiceTokens';
 
-export type ServiceConstructor<T extends Service = Service> = new (...args: ServiceFromToken<TypedServiceToken<Service>>[]) => T
+
+export type ServiceConstructor<T extends Service<any, any> = Service<any, any>> = new (...args: ServiceFromToken<TypedServiceToken<Service<any, any>>>[]) => T
 
 export interface ServiceRegistrationOptions {
-  dependencies?: TypedServiceToken<Service>[]
+  dependencies?: TypedServiceToken<Service<any, any>>[]
 }
 
 // Internal type - ServiceClient should never appear in public APIs
@@ -16,7 +17,7 @@ type InternalServiceClient<T extends Service> = ServiceClient<T>
  * Checks if a service class is marked for worker execution using the @withWorker decorator
  */
 function isWorkerService(ServiceConstructor: any): boolean {
-  return !!(ServiceConstructor as any).__isWorkerService
+  return !!(ServiceConstructor as any).__isWorkerService;
 }
 
 /**
@@ -81,10 +82,10 @@ function isWorkerService(ServiceConstructor: any): boolean {
  * - Type safety is preserved across the worker boundary
  */
 export class ServiceContainer {
-  private services = new Map<symbol, ServiceConstructor>()
-  private serviceInstances = new Map<symbol, Service>()
-  private internalClients = new Map<symbol, InternalServiceClient<Service>>()
-  private registrationOptions = new Map<symbol, ServiceRegistrationOptions>()
+  private services = new Map<symbol, ServiceConstructor<any>>();
+  private serviceInstances = new Map<symbol, Service<any, any>>();
+  private internalClients = new Map<symbol, InternalServiceClient<any>>();
+  private registrationOptions = new Map<symbol, ServiceRegistrationOptions>();
 
   /**
    * Register a service constructor with a token and optional dependencies
@@ -94,20 +95,20 @@ export class ServiceContainer {
    * @param serviceConstructor - The constructor function for the service class
    * @param options - Registration options including dependencies
    */
-  register<T extends TypedServiceToken<Service>>(
+  register<T extends TypedServiceToken<Service<any, any>>>(
     token: T,
     serviceConstructor: ServiceConstructor<ServiceFromToken<T>>,
     options?: ServiceRegistrationOptions
   ): void {
     // Store constructor and options for potential future use
-    this.services.set(token.symbol, serviceConstructor)
+    this.services.set(token.symbol, serviceConstructor);
     if (options) {
-      this.registrationOptions.set(token.symbol, options)
+      this.registrationOptions.set(token.symbol, options);
     }
 
     // Create appropriate client based on service type
-    const client = this.createClientForService(token, serviceConstructor, options)
-    this.internalClients.set(token.symbol, client)
+    const client = this.createClientForService(token, serviceConstructor, options);
+    this.internalClients.set(token.symbol, client);
   }
 
   /**
@@ -117,25 +118,25 @@ export class ServiceContainer {
    * 1. Worker services - creates WorkerServiceClient
    * 2. Local services - creates ServiceClient wrapping the service instance
    */
-  private createClientForService<T extends TypedServiceToken<Service>>(
+  private createClientForService<T extends TypedServiceToken<Service<any, any>>>(
     token: T,
     serviceConstructor: ServiceConstructor<ServiceFromToken<T>>,
     options?: ServiceRegistrationOptions
-  ): InternalServiceClient<Service> {
+  ): InternalServiceClient<any> {
     if (isWorkerService(serviceConstructor)) {
       // WORKER SERVICE: Create WorkerServiceClient directly
       const initialState = typeof (serviceConstructor as any).getInitialState === 'function'
         ? (serviceConstructor as any).getInitialState()
-        : {}
-      return new WorkerServiceClient(serviceConstructor, initialState) as any
+        : {};
+      return new WorkerServiceClient(serviceConstructor, initialState) as any;
     } else {
       // LOCAL SERVICE: Create service instance and wrap in ServiceClient
-      const serviceInstance = this.createServiceInstance(token, serviceConstructor, options)
+      const serviceInstance = this.createServiceInstance(token, serviceConstructor, options);
       return new ServiceClient(
         token as any,
         () => serviceInstance,
         undefined // Not a worker service
-      )
+      );
     }
   }
 
@@ -149,13 +150,13 @@ export class ServiceContainer {
    * @returns The service client instance
    * @throws Error if service not registered
    */
-  resolve<T extends TypedServiceToken<Service>>(token: T): ServiceFromToken<T> {
-    const client = this.internalClients.get(token.symbol)
+  resolve<T extends TypedServiceToken<Service<any, any>>>(token: T): ServiceFromToken<T> {
+    const client = this.internalClients.get(token.symbol);
     if (!client) {
-      throw new Error(`Service not registered for token: ${token.name}`)
+      throw new Error(`Service not registered for token: ${token.name}`);
     }
 
-    return client as unknown as ServiceFromToken<T>
+    return client as unknown as ServiceFromToken<T>;
   }
 
   /**
@@ -166,32 +167,32 @@ export class ServiceContainer {
    * 2. Constructor injection - passes dependency clients to service constructor
    * Note: Only used for local services, worker services are handled separately
    */
-  private createServiceInstance<T extends TypedServiceToken<Service>>(
+  private createServiceInstance<T extends TypedServiceToken<Service<any, any>>>(
     token: T,
     serviceConstructor: ServiceConstructor<ServiceFromToken<T>>,
     options?: ServiceRegistrationOptions
   ): ServiceFromToken<T> {
     // Return existing service instance if available
-    const existingInstance = this.serviceInstances.get(token.symbol)
+    const existingInstance = this.serviceInstances.get(token.symbol);
     if (existingInstance) {
-      return existingInstance as ServiceFromToken<T>
+      return existingInstance as ServiceFromToken<T>;
     }
 
     // Create local service instance with dependency injection
-    const dependencyClients = this.resolveDependencies(options?.dependencies || [])
-    const instance = new serviceConstructor(...dependencyClients)
+    const dependencyClients = this.resolveDependencies(options?.dependencies || []);
+    const instance = new serviceConstructor(...dependencyClients);
 
     // Cache service instance
-    this.serviceInstances.set(token.symbol, instance)
+    this.serviceInstances.set(token.symbol, instance);
 
-    return instance as ServiceFromToken<T>
+    return instance as ServiceFromToken<T>;
   }
 
   /**
    * Resolve dependency tokens to services
    */
-  private resolveDependencies(dependencies: TypedServiceToken<Service>[]): ServiceFromToken<TypedServiceToken<Service>>[] {
-    return dependencies.map(depToken => this.resolve(depToken))
+  private resolveDependencies(dependencies: TypedServiceToken<Service<any, any>>[]): ServiceFromToken<TypedServiceToken<Service<any, any>>>[] {
+    return dependencies.map(depToken => this.resolve(depToken));
   }
 
   /**
@@ -200,8 +201,8 @@ export class ServiceContainer {
    * @param token - The service token
    * @returns The constructor function if registered, undefined otherwise
    */
-  getServiceConstructor<T extends TypedServiceToken<Service>>(token: T): ServiceConstructor<ServiceFromToken<T>> | undefined {
-    return this.services.get(token.symbol) as ServiceConstructor<ServiceFromToken<T>> | undefined
+  getServiceConstructor<T extends TypedServiceToken<Service<any, any>>>(token: T): ServiceConstructor<ServiceFromToken<T>> | undefined {
+    return this.services.get(token.symbol) as ServiceConstructor<ServiceFromToken<T>> | undefined;
   }
 
   /**
@@ -217,18 +218,18 @@ export class ServiceContainer {
     // Clean up all service proxies
     this.internalClients.forEach(serviceProxy => {
       if (serviceProxy && typeof serviceProxy.dispose === 'function') {
-        serviceProxy.dispose()
+        serviceProxy.dispose();
       }
-    })
+    });
 
     // Clear all service instances
     this.serviceInstances.forEach(instance => {
       if (instance && typeof instance.clear === 'function') {
-        instance.clear()
+        instance.clear();
       }
-    })
+    });
 
-    this.internalClients.clear()
-    this.serviceInstances.clear()
+    this.internalClients.clear();
+    this.serviceInstances.clear();
   }
 }

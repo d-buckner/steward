@@ -1,15 +1,15 @@
 // CRDT exports
-export { CRDTService } from './crdt/CRDTService'
+export { CRDTService } from './crdt/CRDTService';
 export type {
   ChangeFunction,
   CRDTState,
   CRDTDocument,
   SyncMessage,
   NetworkAdapter
-} from './crdt/types'
+} from './crdt/types';
 
 // Re-export all CRDT functionality
-export * from './crdt'
+export * from './crdt';
 
 // Future exports for other collaboration features
 // export * from './sync'

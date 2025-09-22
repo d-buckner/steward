@@ -9,13 +9,14 @@
  */
 export type ServiceState = Record<string, any>
 
+
 /**
  * Re-export ServiceActions from Messages.ts for convenience
  * Enforces camelCase action names: unknown[] pattern
  */
-export type { ServiceActions } from './Messages'
+export type { ServiceActions } from './Messages';
 
 /**
  * Re-export ExtractActions from TypeExtraction to avoid circular imports
  */
-export type { ExtractActions } from './TypeExtraction'
+export type { ExtractActions } from './TypeExtraction';

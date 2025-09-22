@@ -1,6 +1,8 @@
-import { defineConfig } from 'vite'
-import { resolve } from 'path'
-import dts from 'vite-plugin-dts'
+import { resolve } from 'path';
+import { defineConfig } from 'vite';
+import dts from 'vite-plugin-dts';
+import solidPlugin from 'vite-plugin-solid';
+
 
 export default defineConfig({
   plugins: [
@@ -33,14 +35,22 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'node',
-    // Configure different environments for different test files
-    environmentMatchGlobs: [
-      // Use jsdom for React and Solid tests
-      ['packages/react/**', 'jsdom'],
-      ['packages/solid/**', 'jsdom'],
-      // Use node for everything else
-      ['**', 'node']
+    projects: [
+      // React tests with jsdom environment
+      {
+        test: {
+          environment: 'jsdom',
+          include: ['packages/react/**/*.test.*']
+        }
+      },
+      // All other tests with node environment
+      {
+        test: {
+          environment: 'node',
+          include: ['test/**/*.test.*', 'packages/collaboration/**/*.test.*'],
+          exclude: ['packages/solid/**/*.test.*'] // Solid tests run from their own package
+        }
+      }
     ]
   }
-})
+});

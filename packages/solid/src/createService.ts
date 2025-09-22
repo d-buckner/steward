@@ -1,6 +1,6 @@
-import { TypedServiceToken } from '@d-buckner/steward'
-import { createServiceState } from './createServiceState'
-import { createServiceActions } from './createServiceActions'
+import { createServiceActions } from './createServiceActions';
+import { createServiceState } from './createServiceState';
+import type { TypedServiceToken } from '@d-buckner/steward';
 
 /**
  * Combined primitive that returns both state and actions for a service
@@ -22,11 +22,11 @@ import { createServiceActions } from './createServiceActions'
  * ```
  */
 export function createService<T extends TypedServiceToken>(token: T) {
-  const state = createServiceState(token)
-  const actions = createServiceActions(token)
+  const state = createServiceState(token);
+  const actions = createServiceActions(token);
 
   return {
     state,
     actions
-  }
+  };
 }

@@ -1,7 +1,9 @@
-import { createContext, useContext, ReactNode } from 'react'
-import { ServiceContainer } from '@d-buckner/steward'
+import { createContext, useContext } from 'react';
+import type { ServiceContainer } from '@d-buckner/steward';
+import type { ReactNode } from 'react';
 
-const ServiceContainerContext = createContext<ServiceContainer | null>(null)
+
+const ServiceContainerContext = createContext<ServiceContainer | null>(null);
 
 interface ServiceProviderProps {
   container: ServiceContainer
@@ -13,13 +15,13 @@ export function ServiceProvider({ container, children }: ServiceProviderProps) {
     <ServiceContainerContext.Provider value={container}>
       {children}
     </ServiceContainerContext.Provider>
-  )
+  );
 }
 
 export function useServiceContainer(): ServiceContainer {
-  const container = useContext(ServiceContainerContext)
+  const container = useContext(ServiceContainerContext);
   if (!container) {
-    throw new Error('useServiceContainer must be used within a ServiceProvider')
+    throw new Error('useServiceContainer must be used within a ServiceProvider');
   }
-  return container
+  return container;
 }

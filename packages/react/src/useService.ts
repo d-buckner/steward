@@ -1,6 +1,6 @@
-import { TypedServiceToken } from '@d-buckner/steward'
-import { useServiceState } from './useServiceState'
-import { useServiceActions } from './useServiceActions'
+import { useServiceActions } from './useServiceActions';
+import { useServiceState } from './useServiceState';
+import type { TypedServiceToken } from '@d-buckner/steward';
 
 /**
  * Combined hook that returns both state and actions for a service
@@ -22,11 +22,11 @@ import { useServiceActions } from './useServiceActions'
  * ```
  */
 export function useService<T extends TypedServiceToken>(token: T) {
-  const state = useServiceState(token)
-  const actions = useServiceActions(token)
+  const state = useServiceState(token);
+  const actions = useServiceActions(token);
 
   return {
     state,
     actions
-  }
+  };
 }

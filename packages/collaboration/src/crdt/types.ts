@@ -1,4 +1,4 @@
-import * as Automerge from '@automerge/automerge'
+import type * as Automerge from '@automerge/automerge';
 
 /**
  * Function type for making changes to an Automerge document
@@ -8,7 +8,7 @@ export type ChangeFunction<T> = (doc: T) => void
 /**
  * Base interface for CRDT-enabled state
  */
-export interface CRDTState extends Record<string, any> {}
+export type CRDTState = Record<string, any>
 
 /**
  * Automerge document wrapper type

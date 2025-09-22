@@ -4,7 +4,7 @@
  */
 
 // Import the worker runtime
-import './worker-runtime'
+import './worker-runtime';
 
 // This file exists primarily to provide a clean entry point for Vite's worker handling
 // The actual worker logic is in worker-runtime.ts

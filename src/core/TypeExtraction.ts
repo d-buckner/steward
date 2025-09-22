@@ -2,7 +2,7 @@
  * Type utilities for extracting action types from service classes
  */
 
-import type { Service } from './Service'
+import type { Service } from './Service';
 
 /**
  * Extract base methods from the Service class
