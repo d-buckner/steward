@@ -33,7 +33,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --include=optional
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
 
       - name: Build core framework
         run: npm run build:core
@@ -44,7 +46,9 @@ jobs:
       - name: Build demo
         run: |
           cd demo
-          npm ci
+          # Install demo dependencies after core packages are built
+          rm -rf node_modules package-lock.json
+          npm install
           NODE_ENV=production npm run build
           # Copy index.html to 404.html for GitHub Pages SPA routing
           cp dist/index.html dist/404.html
