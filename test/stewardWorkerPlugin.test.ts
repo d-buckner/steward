@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { glob } from 'glob';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { stewardWorkerPlugin } from '../src/build/vite-plugin.js';
+import { stewardWorkerPlugin } from '../src/vite-plugin';
 
 // Mock fs operations
 vi.mock('node:fs', () => ({
