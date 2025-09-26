@@ -17,9 +17,9 @@
       "require": "./dist/steward.cjs"
     },
     "./vite": {
-      "types": "./src/build/vite-plugin.d.ts",
-      "import": "./src/build/vite-plugin.js",
-      "require": "./src/build/vite-plugin.js"
+      "types": "./dist/build/vite-plugin.d.ts",
+      "import": "./dist/build/vite-plugin.js",
+      "require": "./dist/build/vite-plugin.js"
     },
     "./worker/worker-registry": {
       "types": "./dist/worker/worker-registry.d.ts",

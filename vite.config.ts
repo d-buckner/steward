@@ -2,6 +2,7 @@ import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 import solidPlugin from 'vite-plugin-solid';
+import { mkdirSync, copyFileSync } from 'fs';
 
 
 export default defineConfig({
@@ -9,7 +10,19 @@ export default defineConfig({
     dts({
       include: ['src/**/*'],
       exclude: ['test/**/*']
-    })
+    }),
+    // Copy vite plugin to dist directory
+    {
+      name: 'copy-vite-plugin',
+      writeBundle() {
+        // Ensure dist/build directory exists
+        mkdirSync('dist/build', { recursive: true });
+
+        // Copy vite plugin files
+        copyFileSync('src/build/vite-plugin.js', 'dist/build/vite-plugin.js');
+        copyFileSync('src/build/vite-plugin.d.ts', 'dist/build/vite-plugin.d.ts');
+      }
+    }
   ],
   build: {
     lib: {
