@@ -4,10 +4,15 @@ import {
 } from './Messages';
 import { ServiceEventBus } from './ServiceEventBus';
 import { getWorkerOptions } from './WorkerDecorator';
+import { encode, decode } from './MessageCodec';
 import type {
   Message} from './Messages';
 import type { EventBus, EventHandler, EventSubscription } from '../types';
 import type { ServiceActions } from './ServiceTypes';
+
+type WorkerMessage<T = unknown> =
+  | { type: 'INIT_SERVICE'; id?: string; serviceName?: string; initialState?: T }
+  | { type: 'SERVICE_MESSAGE'; id: string; messageType: string; payload: T };
 
 /**
  * Message-driven service with reactive state management
@@ -217,7 +222,7 @@ export class Service<
 
     if (this.isInWorker) {
       // In worker: send state change to main thread via postMessage
-      self.postMessage({
+      this.postMessage({
         type: 'STATE_CHANGE',
         key,
         value
@@ -252,7 +257,7 @@ export class Service<
 
       if (this.isInWorker) {
         // In worker: send state change to main thread via postMessage
-        self.postMessage({
+        this.postMessage({
           type: 'STATE_CHANGE',
           key,
           value
@@ -396,34 +401,48 @@ export class Service<
   }
 
   /**
+   * Send message with messagepack encoding and ArrayBuffer transfer
+   */
+  private postMessage(message: any): void {
+    const encoded = encode(message);
+    self.postMessage(encoded, { transfer: [encoded] });
+  }
+
+  /**
    * Set up message handling in worker thread
    */
   private setupWorkerMessageHandling(): void {
     self.onmessage = async (event: MessageEvent) => {
-      const { type, id, messageType, payload } = event.data;
+      const message = decode<WorkerMessage<Actions[keyof Actions]>>(event.data);
 
       try {
-        if (type === 'INIT_SERVICE') {
-          // Service already initialized, just confirm
-          self.postMessage({
-            type: 'INIT_SERVICE',
-            id,
-            success: true
-          });
-        } else if (type === 'SERVICE_MESSAGE') {
-          // Handle method call
-          const result = await this.handle({ type: messageType, payload, id: generateMessageId() } as any);
+        switch (message.type) {
+          case 'INIT_SERVICE':
+            // Service already initialized, just confirm
+            this.postMessage({
+              type: 'INIT_SERVICE',
+              id: message.id,
+              success: true
+            });
+            break;
 
-          self.postMessage({
-            type: 'MESSAGE_RESPONSE',
-            id,
-            result
-          });
+          case 'SERVICE_MESSAGE': {
+            const { messageType, payload } = message;
+            // Handle method call
+            const result = await this.handle(createMessage(messageType, payload));
+
+            this.postMessage({
+              type: 'MESSAGE_RESPONSE',
+              id: message.id,
+              result
+            });
+            break;
+          }
         }
       } catch (error) {
-        self.postMessage({
+        this.postMessage({
           type: 'MESSAGE_RESPONSE',
-          id,
+          id: message.id,
           error: (error as Error).message
         });
       }

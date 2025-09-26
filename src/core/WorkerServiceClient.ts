@@ -2,7 +2,13 @@ import { generateMessageId } from './Messages';
 import { Service } from './Service';
 import { ServiceEventBus } from './ServiceEventBus';
 import { getWorkerOptions } from './WorkerDecorator';
+import { encode, decode } from './MessageCodec';
 import type { EventBus, EventHandler, EventSubscription } from '../types';
+
+type WorkerResponseMessage =
+  | { type: 'STATE_CHANGE'; key: string; value: unknown }
+  | { type: 'MESSAGE_RESPONSE'; id: string; result?: unknown; error?: string }
+  | { type: 'INIT_SERVICE'; id?: string; success: boolean; error?: string };
 
 /**
  * Client for communicating with worker services following the mailbox pattern.
@@ -88,11 +94,12 @@ export class WorkerServiceClient implements EventBus {
     this.worker.onerror = this.handleWorkerError.bind(this);
 
     // Initialize service in worker
-    this.worker.postMessage({
+    const initMessage = encode({
       type: 'INIT_SERVICE',
       serviceName: this.ServiceConstructor.name,
       initialState: this._state
     });
+    this.worker.postMessage(initMessage, [initMessage]);
 
     // Emit initial state to eventBus
     Object.entries(this._state).forEach(([key, value]) => {
@@ -101,16 +108,19 @@ export class WorkerServiceClient implements EventBus {
   }
 
   private handleWorkerMessage(event: MessageEvent): void {
-    const { type, id, key, value, result, error } = event.data;
+    const message = decode<WorkerResponseMessage>(event.data);
 
-    switch (type) {
-      case 'STATE_CHANGE':
+    switch (message.type) {
+      case 'STATE_CHANGE': {
+        const { key, value } = message;
         // Update local state and emit to eventBus
         this._state[key] = value;
         this.eventBus.emit(key, value);
         break;
+      }
 
-      case 'MESSAGE_RESPONSE':
+      case 'MESSAGE_RESPONSE': {
+        const { id, result, error } = message;
         // Handle method response
         if (id && this.pendingRequests.has(id)) {
           const pending = this.pendingRequests.get(id)!;
@@ -124,12 +134,15 @@ export class WorkerServiceClient implements EventBus {
           }
         }
         break;
+      }
 
-      case 'INIT_SERVICE':
-        if (!event.data.success) {
-          console.error('Worker service initialization failed:', event.data.error);
+      case 'INIT_SERVICE': {
+        const { success, error } = message;
+        if (!success) {
+          console.error('Worker service initialization failed:', error);
         }
         break;
+      }
     }
   }
 
@@ -166,12 +179,13 @@ export class WorkerServiceClient implements EventBus {
   send(type: string, payload: any[], correlationId?: string): void {
     const id = correlationId || generateMessageId();
 
-    this.worker.postMessage({
+    const message = encode({
       type: 'SERVICE_MESSAGE',
       id,
       messageType: type,
       payload: Array.isArray(payload) ? payload : [payload]
     });
+    this.worker.postMessage(message, [message]);
   }
 
   async request(
@@ -194,12 +208,13 @@ export class WorkerServiceClient implements EventBus {
       });
 
       // Send the request
-      this.worker.postMessage({
+      const message = encode({
         type: 'SERVICE_MESSAGE',
         id,
         messageType: requestType,
         payload: Array.isArray(payload) ? payload : [payload]
       });
+      this.worker.postMessage(message, [message]);
     });
   }
 
